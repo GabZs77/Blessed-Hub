@@ -1,0 +1,1690 @@
+local loadACLAutomatically = true
+
+-- Executa o script ACL automaticamente ao iniciar (se habilitado)
+if loadACLAutomatically then
+    task.spawn(function()
+        pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/vqmpjayZ/More-Scripts/refs/heads/main/Anthony's%20ACL"))()
+        end)
+    end)
+end
+
+loadstring(game:HttpGet("https://pastefy.app/BcvfSzSS/raw", true))() -- Abertura
+
+-- Função principal dos shaders
+local function applyShaders()
+    local workspace = game:GetService("Workspace") 
+    local Lighting = game:GetService("Lighting") 
+    local RunService = game:GetService("RunService") 
+    local Debris = game:GetService("Debris") 
+    local TweenService = game:GetService("TweenService") 
+    local SoundService = game:GetService("SoundService") 
+    local Players = game:GetService("Players") 
+    local player = Players.LocalPlayer 
+    local model = workspace:FindFirstChild("Model") 
+    
+    -- Som de ativação 
+    local sound = Instance.new("Sound") 
+    sound.SoundId = "rbxassetid://131644923" 
+    sound.Volume = 1 
+    sound.Parent = SoundService 
+    sound:Play() 
+    
+    -- Aplicar materiais ao mapa 
+    if model then 
+        local function setMat(obj) 
+            for _, c in pairs(obj:GetChildren()) do 
+                if c:IsA("BasePart") then 
+                    c.Material = Enum.Material.Basalt 
+                elseif c:IsA("Model") or c:IsA("Folder") then 
+                    setMat(c) 
+                end 
+            end 
+        end 
+        if model:FindFirstChild("001_SnowStreet") then 
+            setMat(model["001_SnowStreet"]) 
+        end 
+        if model:FindFirstChild("Street") then 
+            for _, o in pairs(model.Street:GetDescendants()) do 
+                if o:IsA("BasePart") then 
+                    o.Material = Enum.Material.Basalt 
+                end 
+            end 
+        end 
+        for _, o in pairs(model:GetChildren()) do 
+            if o:IsA("BasePart") and (o.Name == "Sidewalk" or o.Name == "Wedge") and o.Material == Enum.Material.SmoothPlastic then 
+                o.Material = Enum.Material.Cobblestone 
+            end 
+        end 
+        model.ChildAdded:Connect(function(obj) 
+            if obj:IsA("BasePart") and (obj.Name == "Sidewalk" or obj.Name == "Wedge") and obj.Material == Enum.Material.SmoothPlastic then 
+                obj.Material = Enum.Material.Cobblestone 
+            end 
+        end) 
+    end 
+    
+    local soundPart = Instance.new("Part") 
+    soundPart.Size = Vector3.new(1,1,1) 
+    soundPart.Transparency = 1 
+    soundPart.Anchored = true 
+    soundPart.CanCollide = false 
+    soundPart.Parent = workspace 
+    local character = player.Character or player.CharacterAdded:Wait() 
+    local hrp = character:WaitForChild("HumanoidRootPart") 
+    
+    RunService.Heartbeat:Connect(function() 
+        if hrp and hrp.Parent then 
+            soundPart.Position = hrp.Position + Vector3.new(0,10,0) 
+        end 
+    end) 
+    
+    local fountainPart = Instance.new("Part") 
+    fountainPart.Anchored = true 
+    fountainPart.CanCollide = false 
+    fountainPart.Transparency = 1 
+    fountainPart.Size = Vector3.new(1,1,1) 
+    fountainPart.Position = Vector3.new(-27,19,15) 
+    fountainPart.Parent = workspace 
+    local attachment = Instance.new("Attachment") 
+    attachment.Position = Vector3.new(-27,19,15) 
+    attachment.Parent = fountainPart 
+    local fountainSound = Instance.new("Sound") 
+    fountainSound.Name = "FountainSound" 
+    fountainSound.SoundId = "rbxassetid://4766793559" 
+    fountainSound.Looped = true 
+    fountainSound.Volume = 0.03 
+    fountainSound.EmitterSize = 10 
+    fountainSound.RollOffMode = Enum.RollOffMode.Linear 
+    fountainSound.MaxDistance = 100 
+    fountainSound.Parent = attachment 
+    fountainSound:Play() 
+    
+    local active = false 
+    local stars = {} 
+    local shootingStarsFolder = Instance.new("Folder",workspace) 
+    shootingStarsFolder.Name = "ShootingStars" 
+    local STAR_COUNT = 300 
+    local SHOOTING_STAR_CHANCE = 0.3 
+    local SHOOTING_STAR_MAX = 12 
+    local shootingStarCooldown = 0.1 
+    local spaceSound = Instance.new("Sound",workspace) 
+    spaceSound.SoundId = "rbxassetid://1843520836" 
+    spaceSound.Volume = 0.3 
+    spaceSound.Looped = true 
+    spaceSound.Name = "SpaceAmbience" 
+    
+    local function createStar() 
+        local star = Instance.new("Part") 
+        local size = math.random(1,3)*0.5 
+        star.Size = Vector3.new(size,size,size) 
+        star.Position = Vector3.new(math.random(-1000,1000),math.random(300,700),math.random(-1000,1000)) 
+        star.Anchored = true 
+        star.CanCollide = false 
+        star.Material = Enum.Material.Neon 
+        local colors = {Color3.fromRGB(255,255,255),Color3.fromRGB(255,255,180),Color3.fromRGB(180,200,255)} 
+        star.Color = colors[math.random(1,#colors)] 
+        star.Name = "Star" 
+        star.Parent = workspace 
+        local light = Instance.new("PointLight",star) 
+        light.Brightness = 2 + math.random()*1.5 
+        light.Range = 12 
+        spawn(function() 
+            while star.Parent and active do 
+                star.Transparency = 0.2 + math.sin(tick()*math.random(2,5))*0.2 
+                RunService.Heartbeat:Wait() 
+            end 
+            if star.Parent then star:Destroy() end 
+        end) 
+        table.insert(stars,star) 
+    end 
+    
+    local function createShootingStar() 
+        if not active then return end 
+        local startPos = Vector3.new(math.random(-1000,1000),math.random(350,600),math.random(-1000,1000)) 
+        local dir = Vector3.new(math.random(-1,1),math.random(-0.1,0.1),math.random(-1,1)).Unit 
+        local speed = math.random(350,550) 
+        local isFire = math.random() <= SHOOTING_STAR_CHANCE 
+        local color = isFire and Color3.fromRGB(255,50,50) or Color3.fromRGB(255,255,220) 
+        local star = Instance.new("Part") 
+        star.Size = Vector3.new(0.5,0.5,3) 
+        star.Position = startPos 
+        star.Anchored = true 
+        star.CanCollide = false 
+        star.Material = Enum.Material.Neon 
+        star.Color = color 
+        star.Name = "ShootingStar" 
+        star.Parent = shootingStarsFolder 
+        local att0 = Instance.new("Attachment",star) 
+        local att1 = Instance.new("Attachment",star) 
+        att1.Position = Vector3.new(0,0,-3) 
+        local trail = Instance.new("Trail",star) 
+        trail.Attachment0 = att0 
+        trail.Attachment1 = att1 
+        trail.Lifetime = 0.35 
+        trail.Color = ColorSequence.new(color) 
+        trail.LightEmission = 1 
+        trail.WidthScale = NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(1,0)}) 
+        local light = Instance.new("PointLight",star) 
+        light.Brightness = isFire and 12 or 7 
+        light.Range = 35 
+        light.Color = color 
+        if isFire then 
+            local fire = Instance.new("Fire",star) 
+            fire.Heat = 15 
+            fire.Size = 3.5 
+            fire.Color = Color3.fromRGB(255,110,0) 
+            fire.SecondaryColor = Color3.fromRGB(255,210,0) 
+        end 
+        local lifetime = math.random(1,1.5) 
+        local timePassed = 0 
+        local moveConn 
+        moveConn = RunService.Heartbeat:Connect(function(dt) 
+            if not active then moveConn:Disconnect() if star.Parent then star:Destroy() end return end 
+            timePassed += dt 
+            if timePassed >= lifetime then moveConn:Disconnect() if star.Parent then star:Destroy() end return end 
+            local curve = math.sin(timePassed*20)*0.5 
+            star.Position += (dir+Vector3.new(0,curve,0)).Unit*speed*dt 
+        end) 
+        Debris:AddItem(star,4) 
+    end 
+    
+    local function updateSky() 
+        local hour = Lighting.ClockTime 
+        local shouldBeActive = hour >= 18 or hour < 6 
+        if shouldBeActive and not active then 
+            active = true 
+            Lighting.FogColor = Color3.fromRGB(10,10,30) 
+            Lighting.FogEnd = 5000 
+            Lighting.Brightness = 2 
+            for _,s in ipairs(stars) do if s and s.Parent then s:Destroy() end end 
+            stars = {} 
+            for _,p in ipairs(shootingStarsFolder:GetChildren()) do p:Destroy() end 
+            for i=1,STAR_COUNT do createStar() end 
+            spaceSound:Play() 
+        elseif not shouldBeActive and active then 
+            active = false 
+            for _,s in ipairs(stars) do if s and s.Parent then s:Destroy() end end 
+            stars = {} 
+            for _,p in ipairs(shootingStarsFolder:GetChildren()) do p:Destroy() end 
+            spaceSound:Stop() 
+            Lighting.FogColor = Color3.fromRGB(192,192,192) 
+            Lighting.FogEnd = 100000 
+            Lighting.Brightness = 2 
+        end 
+    end 
+    
+    task.spawn(function() 
+        while true do 
+            if active then 
+                for i=1,SHOOTING_STAR_MAX do 
+                    createShootingStar() 
+                    task.wait(shootingStarCooldown) 
+                end 
+            else 
+                task.wait(1) 
+            end 
+        end 
+    end) 
+    
+    task.spawn(function() 
+        while true do 
+            updateSky() 
+            task.wait(1) 
+        end 
+    end) 
+    
+    -- Iluminação e ambiente geral 
+    Lighting.Brightness = 2 
+    Lighting.GlobalShadows = true 
+    Lighting.OutdoorAmbient = Color3.fromRGB(70, 70, 70) 
+    Lighting.FogColor = Color3.fromRGB(120, 130, 140) 
+    Lighting.FogStart = 80 
+    Lighting.FogEnd = 600 
+    Lighting.EnvironmentSpecularScale = 1 
+    Lighting.EnvironmentDiffuseScale = 0.5 
+    local sky = Instance.new("Sky") 
+    sky.SkyboxBk = "rbxassetid://159454299" 
+    sky.SkyboxDn = "rbxassetid://159454296" 
+    sky.SkyboxFt = "rbxassetid://159454293" 
+    sky.SkyboxLf = "rbxassetid://159454286" 
+    sky.SkyboxRt = "rbxassetid://159454300" 
+    sky.SkyboxUp = "rbxassetid://159454304" 
+    sky.Parent = Lighting 
+    local color = Instance.new("ColorCorrectionEffect", Lighting) 
+    color.Brightness = 0.03 
+    color.Contrast = 0.15 
+    color.Saturation = 0.05 
+    color.TintColor = Color3.fromRGB(255, 240, 220) 
+    local bloom = Instance.new("BloomEffect", Lighting) 
+    bloom.Intensity = 0.8 
+    bloom.Size = 56 
+    bloom.Threshold = 0.9 
+    local sunRays = Instance.new("SunRaysEffect", Lighting) 
+    sunRays.Intensity = 0.05 
+    sunRays.Spread = 0.8 
+    local blur = Instance.new("BlurEffect", Lighting) 
+    blur.Size = 0 
+end
+
+-- Executa automaticamente ao iniciar
+applyShaders()
+
+-- Carrega a biblioteca WindUI
+local WindUI
+local success, result = pcall(function()
+    return require("./src/init")
+end)
+
+if not success then
+    success, result = pcall(function()
+        return loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+    end)
+end
+
+if not success then
+    warn("Erro ao carregar WindUI: " .. tostring(result))
+    return
+end
+
+WindUI = result
+
+-- Serviços do Roblox
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local TextChatService = game:GetService("TextChatService")
+local HttpService = game:GetService("HttpService")
+local StarterGui = game:GetService("StarterGui")
+
+-- Objetos e Jogadores Locais
+local LocalPlayer = Players.LocalPlayer
+local Player = LocalPlayer
+local PlaceId = game.PlaceId
+
+-- Variáveis de Estado Globais
+local SelectedPlayer = nil
+local ColorChangeActive = false
+local AutoEquipSkins = false
+local SavedSkinName = ""
+local savedSkins = {}
+local noclip = false
+local currentSound = nil
+local SelectedTag = nil
+local respawnAtDeathPosition = false
+local jobId = nil
+
+-- IDs e Constantes
+local soundId = "rbxassetid://1836973601"
+
+-- Função para notificar o usuário
+local function notify(title, content, duration)
+    pcall(function()
+        StarterGui:SetCore("ChatMakeSystemMessage", {
+            Text = "[Blessed Hub] " .. title .. ": " .. content;
+            Color = Color3.fromRGB(255, 100, 0);
+            Font = Enum.Font.SourceSansBold;
+            FontSize = Enum.FontSize.Size24;
+        })
+    end)
+    
+    -- Tenta usar a notificação do WindUI se disponível
+    if WindUI and WindUI.Notify then
+        pcall(function()
+            WindUI:Notify({
+                Title = title,
+                Content = content,
+                Duration = duration or 3
+            })
+        end)
+    end
+end
+
+-- =====================================================
+-- 2. FUNÇÕES PRINCIPAIS (LÓGICA DO SCRIPT)
+-- =====================================================
+
+-- --- Funções de Utilidade e Interface ---
+
+function playSound()
+    local sound = Instance.new("Sound")
+    sound.SoundId = soundId
+    sound.Parent = game.Workspace
+    sound:Play()
+end
+
+function GetDateTime()
+    local now = os.date("*t")
+    return string.format("%02d/%02d/%04d - %02d:%02d:%02d", now.day, now.month, now.year, now.hour, now.min, now.sec)
+end
+
+function GetPlayerByName(query)
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Name:lower():sub(1, #query) == query:lower() or  
+           player.DisplayName:lower():sub(1, #query) == query:lower() then
+            return player
+        end
+    end
+    return nil
+end
+
+-- --- Funções do Jogador e Personagem ---
+
+function getHumanoid()
+    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    return character:WaitForChild("Humanoid")
+end
+
+function CopyPlayerSkin(player)
+    if player and player.Character and player.Character:FindFirstChild("Humanoid") then
+        local humanoidDescription = player.Character.Humanoid.HumanoidDescription
+        local args = {
+            [1] = humanoidDescription,
+            [2] = true
+        }
+        
+        -- Tenta encontrar o evento de diferentes maneiras
+        local event = nil
+        if ReplicatedStorage:FindFirstChild("Events") then
+            event = ReplicatedStorage.Events:FindFirstChild("TryBuy")
+            if event then
+                event = event:FindFirstChild("Try")
+            end
+        end
+        
+        if event then
+            event:FireServer(unpack(args))
+            notify("Sucesso", "Skin copiada de: " .. player.Name, 3)
+        else
+            notify("Erro", "Evento de compra de skin não encontrado", 3)
+        end
+    end
+end
+
+function GetEquippedSkinIDs()
+    local equippedIDs = {}
+    local character = LocalPlayer.Character
+    if not character then return equippedIDs end
+
+    for _, item in ipairs(character:GetChildren()) do
+        if item:IsA("Accessory") and item:FindFirstChild("Handle") then
+            local handle = item.Handle
+            local mesh = handle:FindFirstChildOfClass("SpecialMesh") or handle:FindFirstChildOfClass("Mesh")
+            if mesh and mesh.MeshId and mesh.MeshId ~= "" then
+                local accessoryId = mesh.MeshId:match("%d+")
+                table.insert(equippedIDs, "Acessório: " .. (accessoryId or "Sem ID") .. " (" .. item.Name .. ")")
+            else
+                table.insert(equippedIDs, "Acessório (Sem ID): " .. item.Name)
+            end
+        end
+    end
+
+    local shirt = character:FindFirstChildOfClass("Shirt")
+    if shirt and shirt.ShirtTemplate and shirt.ShirtTemplate ~= "" then
+        table.insert(equippedIDs, "Roupa (Camisa): " .. shirt.ShirtTemplate)
+    end
+
+    local pants = character:FindFirstChildOfClass("Pants")
+    if pants and pants.PantsTemplate and pants.PantsTemplate ~= "" then
+        table.insert(equippedIDs, "Roupa (Calça): " .. pants.PantsTemplate)
+    end
+
+    return equippedIDs
+end
+
+function ResetSkin()
+    -- Tenta encontrar o evento de diferentes maneiras
+    local event = nil
+    if ReplicatedStorage:FindFirstChild("Events") then
+        event = ReplicatedStorage.Events:FindFirstChild("Refresh")
+    end
+    
+    if event then
+        event:FireServer()
+        notify("Sucesso", "Skin reiniciada", 3)
+    else
+        notify("Erro", "Evento de refresh não encontrado", 3)
+    end
+end
+
+-- --- Funções de Teleporte ---
+
+function TeleportToPlayer(targetPlayer)
+    local myCharacter = LocalPlayer.Character
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") and myCharacter and myCharacter:FindFirstChild("HumanoidRootPart") then
+        myCharacter.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+        notify("Teleportado", "Você foi teleportado para: " .. targetPlayer.Name, 5)
+    else
+        notify("Erro", "Não foi possível teleportar.", 5)
+    end
+end
+
+-- --- Funções de Música ---
+
+function playMusic(songID)
+    if currentSound then
+        currentSound:Destroy()
+        currentSound = nil
+    end
+    currentSound = Instance.new("Sound")
+    currentSound.Parent = game.Workspace
+    currentSound.SoundId = "rbxassetid://" .. songID
+    currentSound.Volume = 0.5
+    currentSound.Looped = false
+    currentSound:Play()
+    notify("Música", "Tocando música ID: " .. songID, 3)
+end
+
+function stopMusic()
+    if currentSound then
+        currentSound:Stop()
+        currentSound:Destroy()
+        currentSound = nil
+        notify("Música Parada", "A música foi parada.", 2)
+    end
+end
+
+-- Tag
+function ApplyTagToMessage(message)
+    local properties = Instance.new("TextChatMessageProperties")
+    if SelectedTag then
+        properties.PrefixText = "<font color='#ff8400'>" .. SelectedTag .. "</font> " .. message.PrefixText
+    else
+        properties.PrefixText = message.PrefixText
+    end
+    return properties
+end
+
+
+-- --- Funções de Itens ---
+
+function getItem(itemName, assetId)
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if backpack then
+        local success, item = pcall(function()
+            return game:GetObjects("rbxassetid://" .. assetId)[1]
+        end)
+        if success and item then
+            item.Parent = backpack
+            item.Name = itemName
+            notify("Item Obtido", "Você pegou " .. itemName .. "!", 3)
+        else
+            notify("Erro", "Este modelo pode estar indisponível: " .. itemName, 3)
+        end
+    else
+        notify("Erro", "Não foi possível pegar " .. itemName .. ".", 3)
+    end
+end
+
+-- --- Funções de Skin Pré-definidas ---
+
+function EquipSkinSapo()
+    local args = {
+        [1] = {
+            ["WalkAnimation"] = 0, ["Accessories"] = {}, ["RightLegColor"] = nil, ["MoodAnimation"] = 14618207727,
+            ["LeftLegColor"] = nil, ["JumpAnimation"] = 0, ["ProportionScale"] = 0, ["BodyTypeScale"] = 1,
+            ["ClimbAnimation"] = 0, ["LeftArmColor"] = nil, ["Face"] = 0, ["Pants"] = 0, ["RightArmColor"] = nil,
+            ["DepthScale"] = 1, ["WidthScale"] = 1, ["SwimAnimation"] = 0, ["RightArm"] = 17898082257,
+            ["GraphicTShirt"] = 0, ["Head"] = 17898084158, ["Shirt"] = 0, ["RightLeg"] = 17898082268,
+            ["RunAnimation"] = 0, ["Torso"] = 17898081687, ["FallAnimation"] = 0, ["TorsoColor"] = nil,
+            ["IdleAnimation"] = 0, ["LeftArm"] = 17898082237, ["HeadScale"] = 1, ["HeightScale"] = 1,
+            ["HeadColor"] = nil, ["LeftLeg"] = 17898081542
+        }
+    }
+    
+    local success = pcall(function()
+        local event = ReplicatedStorage:WaitForChild("BloxbizRemotes"):WaitForChild("CatalogOnApplyOutfit")
+        if event then
+            event:FireServer(unpack(args))
+            notify("Skin Equipada", "A skin 'Skin de sapo' foi equipada.", 5)
+        else
+            notify("Erro", "Evento de aplicação de skin não encontrado", 3)
+        end
+    end)
+    
+    if not success then
+        notify("Erro", "Falha ao equipar skin de sapo", 3)
+    end
+end
+
+function EquipSkinCapivara()
+    local args = {
+        [1] = {
+            ["WalkAnimation"] = 0, ["Accessories"] = {}, ["RightLegColor"] = nil, ["MoodAnimation"] = 14618207727,
+            ["LeftLegColor"] = nil, ["JumpAnimation"] = 0, ["ProportionScale"] = 0, ["BodyTypeScale"] = 1,
+            ["ClimbAnimation"] = 0, ["LeftArmColor"] = nil, ["Face"] = 0, ["Pants"] = 0, ["RightArmColor"] = nil,
+            ["DepthScale"] = 1, ["WidthScale"] = 1, ["SwimAnimation"] = 0, ["RightArm"] = 131681603005543,
+            ["GraphicTShirt"] = 0, ["Head"] = 109137349673343, ["Shirt"] = 0, ["RightLeg"] = 98454038846291,
+            ["RunAnimation"] = 0, ["Torso"] = 129341990941517, ["FallAnimation"] = 0, ["TorsoColor"] = nil,
+            ["IdleAnimation"] = 0, ["LeftArm"] = 107032747230578, ["HeadScale"] = 1, ["HeightScale"] = 1,
+            ["HeadColor"] = nil, ["LeftLeg"] = 93110795723782
+        }
+    }
+    
+    local success = pcall(function()
+        local event = ReplicatedStorage:WaitForChild("BloxbizRemotes"):WaitForChild("CatalogOnApplyOutfit")
+        if event then
+            event:FireServer(unpack(args))
+            notify("Skin Equipada", "A skin 'Skin de capivara' foi equipada.", 5)
+        else
+            notify("Erro", "Evento de aplicação de skin não encontrado", 3)
+        end
+    end)
+    
+    if not success then
+        notify("Erro", "Falha ao equipar skin de capivara", 3)
+    end
+end
+
+-- =====================================================
+-- 3. CRIAÇÃO DA INTERFACE (JANELA, ABAS E ELEMENTOS)
+-- =====================================================
+
+-- Tentativa de criar a janela com tratamento de erros
+local Window
+local success, err = pcall(function()
+    Window = WindUI:CreateWindow({
+        Title = "Blessed Hub | Elite",
+        Icon = "crown",
+        Author = "Gab Scripts",
+        Folder = "CloudHub",
+        Size = UDim2.fromOffset(580, 460),
+        Transparent = true,
+        Theme = "Dark",
+        SideBarWidth = 200,
+        Background = "rbxassetid://137028743511937",
+        HasOutline = false,
+        KeySystem = { 
+            Key = { "1234", "5678" },
+            Note = "The Key is '1234' or '5678'",
+            Thumbnail = { Image = "rbxassetid://110674298351147", Title = "Blessed Hub" },
+            URL = "https://github.com/Footagesus/WindUI",
+            SaveKey = true,
+        },
+        OpenButton = {
+            Title = "Abrir Blessed Hub",
+            CornerRadius = UDim.new(0,10),
+            StrokeThickness = 2,
+            Color = ColorSequence.new(Color3.fromHex("FF0F7B"), Color3.fromHex("F89B29")),
+            Enabled = true,
+            Draggable = true,
+        }
+    })
+end)
+
+if not success then
+    warn("Erro ao criar janela: " .. tostring(err))
+    notify("Erro", "Não foi possível criar a interface: " .. tostring(err), 5)
+    return
+end
+
+-- --- Criação das Abas ---
+
+local CreditTab = Window:Tab({ Title = "Creditos", Icon = "info" })
+local MainTab = Window:Tab({ Title = "Inicio", Icon = "house" })
+local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
+local PersonagemTab = Window:Tab({ Title = "Personagem", Icon = "footprints" })
+local SkinTab = Window:Tab({ Title = "Skins Salvas", Icon = "shirt" })
+local StalkTab = Window:Tab({ Title = "Stalk", Icon = "eye" })
+local TeleportTab = Window:Tab({ Title = "Teleportes", Icon = "map-pin" })
+local TrollTab = Window:Tab({ Title = "Troll", Icon = "skull" })
+local BypassTab = Window:Tab({ Title = "Bypass", Icon = "cpu" })
+local MusicTab = Window:Tab({ Title = "Musica", Icon = "music" })
+local ParceirosTab = Window:Tab({ Title = "Parceiros", Icon = "users" })
+local TagTab = Window:Tab({ Title = "Tags", Icon = "tag" })
+local ItemTab = Window:Tab({ Title = "Item", Icon = "backpack" })
+local AdminTab = Window:Tab({ Title = "Admin", Icon = "hammer" })
+local WindowTab = Window:Tab({ Title = "Settings", Icon = "settings" })
+local ExtraTab = Window:Tab({ Title = "Extras", Icon = "grid" })
+
+Window:SelectTab(1)
+
+-- --- Conteúdo das Abas ---
+
+-- [Creditos Tab]
+CreditTab:Section({ Title = "Bem-vindo ao Blessed Hub, " .. LocalPlayer.DisplayName .. "!", TextSize = 20 })
+local TimeSection = CreditTab:Section({ Title = "Data e Hora", TextSize = 18 })
+task.spawn(function()
+    while true do
+        TimeSection:SetTitle("Data e Hora: " .. GetDateTime())
+        wait(1)
+    end
+end)
+CreditTab:Button({ Title = "Copiar Link do Canal YouTube", Callback = function() 
+    setclipboard("https://youtube.com/@ghzinn077?si=8YTQJcw95ww43ISC")
+    notify("Sucesso!", "Link do canal copiado.", 3) 
+end})
+CreditTab:Button({ Title = "Copiar Link do Servidor Discord", Callback = function() 
+    setclipboard("https://dsc.gg/blessed-scripts")
+    notify("Sucesso!", "Link do discord copiado.", 3) 
+end})
+CreditTab:Code({ Title = "Creditos do script", Code = [[Esse script foi feito com muito carinho pela equipe Blessed Team ❤️. Muito obrigado por usar o Blessed Hub 😊
+Desenvolvedores: Gab Scripts (GHOST) e Robson
+Helpers: Kauan e Anna]] })
+
+-- [Main Tab]
+local playerCountLabel = MainTab:Section({ Title = "Jogadores No Servidor: " .. #Players:GetPlayers(), TextXAlignment = "Center" })
+local function updatePlayerCount() 
+    playerCountLabel:SetTitle("Jogadores No Servidor: " .. #Players:GetPlayers()) 
+end
+Players.PlayerAdded:Connect(updatePlayerCount)
+Players.PlayerRemoving:Connect(updatePlayerCount)
+MainTab:Input({ Title = "Selecionar Jogador", PlaceholderText = "Digite as iniciais...", Callback = function(value) 
+    SelectedPlayer = GetPlayerByName(value)
+    if SelectedPlayer then
+        notify("Jogador Selecionado", "Você selecionou: " .. SelectedPlayer.Name, 3)
+    else
+        notify("Erro", "Jogador não encontrado.", 3)
+    end
+end})
+MainTab:Toggle({ Title = "Visualizar Jogador", Value = false, Callback = function(state)
+    if SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        Workspace.CurrentCamera.CameraSubject = state and SelectedPlayer.Character.Humanoid or LocalPlayer.Character.Humanoid
+    else 
+        notify("Erro", "Nenhum jogador válido selecionado.", 5) 
+    end
+end})
+MainTab:Button({ Title = "Copiar Skin", Callback = function()
+    if SelectedPlayer then 
+        CopyPlayerSkin(SelectedPlayer) 
+    else 
+        notify("Erro", "Nenhum jogador válido selecionado.", 5) 
+    end
+end})
+local copySkinConnection
+MainTab:Toggle({ Title = "Copiar Skin ao Clicar", Value = false, Callback = function(state)
+    local Mouse = LocalPlayer:GetMouse()
+    if state then
+        copySkinConnection = Mouse.Button1Down:Connect(function()
+            local target = Mouse.Target
+            if target and target.Parent:IsA("Model") then
+                local player = Players:GetPlayerFromCharacter(target.Parent)
+                if player then 
+                    CopyPlayerSkin(player)
+                    notify("Skin Copiada", "Você copiou a skin de: " .. player.Name, 5) 
+                end
+            end
+        end)
+    else
+        if copySkinConnection then 
+            copySkinConnection:Disconnect()
+            copySkinConnection = nil 
+        end
+        notify("Desativado", "Copiar Skin ao Clicar foi desativado.", 5)
+    end
+end})
+
+-- [Player Tab]
+PlayerTab:Slider({ Title = "Campo de Visão (FOV)", Step = 1, Value = { Min = 20, Max = 120, Default = 70 }, Callback = function(value) 
+    Workspace.CurrentCamera.FieldOfView = value 
+end})
+PlayerTab:Input({ Title = "Velocidade (Speed)", Desc = "Altera sua velocidade (16 normal)", PlaceholderText = "16", Callback = function(Text)
+    local speed = tonumber(Text)
+    if speed then
+        local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then 
+            humanoid.WalkSpeed = speed
+            notify("Speed Aplicado", "Velocidade: " .. speed, 5) 
+        else 
+            notify("Error", "Humanoid not found!", 5) 
+        end
+    else 
+        notify("Invalid Input", "Digite um número válido.", 5) 
+    end
+end})
+PlayerTab:Toggle({ Title = "Sprint", Value = false, Callback = function(state)
+    local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.WalkSpeed = state and 24 or 16
+        notify("Sprint", state and "Ativado (Velocidade: 24)" or "Desativado (Velocidade: 16)", 5)
+    else 
+        notify("Erro", "Humanoid não encontrado!", 5) 
+    end
+end})
+PlayerTab:Toggle({ Title = "Modo Nado (Swim Mode)", Value = false, Callback = function(state)
+    local humanoid = getHumanoid()
+    if humanoid then
+        if state then
+            Workspace.Gravity = 0
+            for _, stateType in pairs(Enum.HumanoidStateType:GetEnumItems()) do 
+                humanoid:SetStateEnabled(stateType, false) 
+            end
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming, true)
+            humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
+            notify("Swim Mode Ativado", "Agora você está nadando!", 5)
+        else
+            Workspace.Gravity = 196.2
+            for _, stateType in pairs(Enum.HumanoidStateType:GetEnumItems()) do 
+                humanoid:SetStateEnabled(stateType, true) 
+            end
+            humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
+            humanoid:ChangeState(Enum.HumanoidStateType.Running)
+            notify("Swim Mode Desativado", "Modo de nado desativado.", 5)
+        end
+    else 
+        notify("Erro", "Humanoid não encontrado!", 5) 
+    end
+end})
+PlayerTab:Toggle({ Title = "Noclip", Value = false, Callback = function(state)
+    noclip = state
+    notify("Noclip", state and "Ativado" or "Desativado", 5)
+end})
+
+-- 🟩 Serviços
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local speaker = Players.LocalPlayer
+
+-- Valor padrão de velocidade do Fly
+getgenv().flySpeed = 1
+
+-- 🟦 Função Fly
+local function flymode(speeds, value)
+    getgenv().flyModeSpeed = speeds or getgenv().flySpeed
+    if value == nil then
+        if getgenv().isFlyActive == nil then getgenv().isFlyActive = false end
+        getgenv().isFlyActive = not getgenv().isFlyActive
+    else
+        getgenv().isFlyActive = value
+    end
+
+    local chr = speaker.Character
+    local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+    local function enableAllStates()
+        for _, s in ipairs(Enum.HumanoidStateType:GetEnumItems()) do
+            pcall(function() hum:SetStateEnabled(s, true) end)
+        end
+    end
+    local function disableAllStates()
+        for _, s in ipairs(Enum.HumanoidStateType:GetEnumItems()) do
+            pcall(function() hum:SetStateEnabled(s, false) end)
+        end
+    end
+
+    if not getgenv().isFlyActive then
+        enableAllStates()
+        hum:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
+        if chr:FindFirstChild("FlyBG") then chr.FlyBG:Destroy() end
+        if chr:FindFirstChild("FlyBV") then chr.FlyBV:Destroy() end
+        hum.PlatformStand = false
+        if chr:FindFirstChild("Animate") then chr.Animate.Disabled = false end
+        getgenv().tpwalking = false
+        return
+    end
+
+    -- Ativar Fly
+    for i = 1, getgenv().flyModeSpeed do
+        task.spawn(function()
+            local hb = game:GetService("RunService").Heartbeat
+            getgenv().tpwalking = true
+            while getgenv().tpwalking and hb:Wait() and chr and hum and hum.Parent do
+                if hum.MoveDirection.Magnitude > 0 then
+                    chr:TranslateBy(hum.MoveDirection)
+                end
+            end
+        end)
+    end
+
+    chr.Animate.Disabled = true
+    for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
+        track:AdjustSpeed(0)
+    end
+    disableAllStates()
+    hum:ChangeState(Enum.HumanoidStateType.Swimming)
+
+    local rigType = hum.RigType
+    local torso = (rigType == Enum.HumanoidRigType.R6 and chr:FindFirstChild("Torso")) or chr:FindFirstChild("UpperTorso")
+    if not torso then return end
+
+    local bg = Instance.new("BodyGyro", torso)
+    bg.Name = "FlyBG"
+    bg.P = 9e4
+    bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bg.cframe = torso.CFrame
+
+    local bv = Instance.new("BodyVelocity", torso)
+    bv.Name = "FlyBV"
+    bv.velocity = Vector3.new(0, 0.1, 0)
+    bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+
+    getgenv().currentFlyBodyVelocity = bv -- 🔹 Guarda referência para o slider atualizar
+
+    speaker.Character.Humanoid.PlatformStand = true
+
+    task.spawn(function()
+        local ctrl = {f = 0, b = 0, l = 0, r = 0}
+        local lastctrl = {f = 0, b = 0, l = 0, r = 0}
+        local speed = 0
+        local maxspeed = getgenv().flySpeed * 50
+
+        while getgenv().isFlyActive and hum.Health > 0 do
+            task.wait()
+
+            if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
+                speed = speed + 0.5 + (speed / maxspeed)
+                if speed > maxspeed then speed = maxspeed end
+            elseif speed > 0 then
+                speed = speed - 1
+                if speed < 0 then speed = 0 end
+            end
+
+            local cam = workspace.CurrentCamera
+            if ctrl.f + ctrl.b ~= 0 or ctrl.l + ctrl.r ~= 0 then
+                bv.velocity = ((cam.CFrame.LookVector * (ctrl.f + ctrl.b))
+                    + ((cam.CFrame * CFrame.new(ctrl.l + ctrl.r, (ctrl.f + ctrl.b) * 0.2, 0)).Position
+                    - cam.CFrame.Position)) * speed
+                lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
+            elseif speed ~= 0 then
+                bv.velocity = ((cam.CFrame.LookVector * (lastctrl.f + lastctrl.b))
+                    + ((cam.CFrame * CFrame.new(lastctrl.l + lastctrl.r, (lastctrl.f + lastctrl.b) * 0.2, 0)).Position
+                    - cam.CFrame.Position)) * speed
+            else
+                bv.velocity = Vector3.new(0, 0, 0)
+            end
+
+            bg.CFrame = cam.CFrame * CFrame.Angles(
+                -math.rad((ctrl.f + ctrl.b) * 50 * speed / maxspeed), 0, 0
+            )
+
+            UserInputService.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.Keyboard then
+                    if input.KeyCode == Enum.KeyCode.W then ctrl.f = 1 end
+                    if input.KeyCode == Enum.KeyCode.S then ctrl.b = -1 end
+                    if input.KeyCode == Enum.KeyCode.A then ctrl.l = -1 end
+                    if input.KeyCode == Enum.KeyCode.D then ctrl.r = 1 end
+                end
+            end)
+            UserInputService.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.Keyboard then
+                    if input.KeyCode == Enum.KeyCode.W then ctrl.f = 0 end
+                    if input.KeyCode == Enum.KeyCode.S then ctrl.b = 0 end
+                    if input.KeyCode == Enum.KeyCode.A then ctrl.l = 0 end
+                    if input.KeyCode == Enum.KeyCode.D then ctrl.r = 0 end
+                end
+            end)
+        end
+
+        if bg then bg:Destroy() end
+        if bv then bv:Destroy() end
+        speaker.Character.Humanoid.PlatformStand = false
+        if speaker.Character:FindFirstChild("Animate") then
+            speaker.Character.Animate.Disabled = false
+        end
+        getgenv().tpwalking = false
+    end)
+end
+
+-- 🟢 Toggle de Fly
+PlayerTab:Toggle({
+    Title = "Fly",
+    Value = false,
+    Callback = function(state)
+        flymode(getgenv().flySpeed, state)
+    end
+})
+
+-- 🔵 Slider de Velocidade do Fly
+PlayerTab:Slider({
+Title = "Fly Speed",
+Step = 1,
+Value = { Min = 1, Max = 10, Default = 1 },
+Callback = function(value)
+getgenv().flySpeed = value
+notify("Fly Speed Atualizado", "Velocidade definida para " .. value, 3)
+end
+})
+
+-- [Personagem Tab]
+PersonagemTab:Button({ Title = "Exibir IDs Equipados", Callback = function()
+    local equippedIDs = GetEquippedSkinIDs()
+    if #equippedIDs > 0 then 
+        notify("Itens Equipados", table.concat(equippedIDs, "\n"), 10)
+    else 
+        notify("Nenhum Item Encontrado", "Nenhum acessório ou roupa foi identificado.", 10) 
+    end
+end})
+PersonagemTab:Input({ Title = "Copiar IDs", Desc = "Digite 'sim' para copiar os IDs.", PlaceholderText = "Digite 'sim'", Finished = true, Callback = function(value)
+    if value:lower() == "sim" then
+        local equippedIDs = GetEquippedSkinIDs()
+        if #equippedIDs > 0 then 
+            setclipboard(table.concat(equippedIDs, "\n"))
+            notify("IDs Copiados", "IDs copiados para a área de transferência.", 10)
+        else 
+            notify("Nenhum Item Encontrado", "Nenhum item para copiar.", 10) 
+        end
+    else 
+        notify("Operação Cancelada", "IDs não foram copiados.", 10) 
+    end
+end})
+PersonagemTab:Toggle({ Title = "Mudar Cor do Personagem", Value = false, Callback = function(state)
+    ColorChangeActive = state
+    if state then
+        task.spawn(function()
+            while ColorChangeActive do
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                    local newColor = Color3.new(math.random(), math.random(), math.random())
+                    local args = { 
+                        [1] = { 
+                            ["BodyColor"] = { 
+                                ["HeadColor"] = newColor, 
+                                ["TorsoColor"] = newColor, 
+                                ["LeftArmColor"] = newColor, 
+                                ["RightArmColor"] = newColor, 
+                                ["LeftLegColor"] = newColor, 
+                                ["RightLegColor"] = newColor 
+                            } 
+                        } 
+                    }
+                    
+                    local success = pcall(function()
+                        local event = ReplicatedStorage:FindFirstChild("BloxbizRemotes"):FindFirstChild("CatalogOnApplyToRealHumanoid")
+                        if event then
+                            event:FireServer(unpack(args))
+                        end
+                    end)
+                    
+                    if not success then
+                        notify("Erro", "Falha ao mudar cor do personagem", 3)
+                        ColorChangeActive = false
+                        break
+                    end
+                end
+                task.wait(0.1)
+            end
+        end)
+    end
+end})
+PersonagemTab:Button({ Title = "Salvar Skin do mapa todo", Callback = function()
+    savedSkins = {}
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Character and player.Character:FindFirstChild("Humanoid") then
+            table.insert(savedSkins, {player.DisplayName, player})
+        end
+    end
+    notify("Skins Salvas", "As skins de todos os jogadores foram salvas!", 3)
+end})
+
+-- [Skin Tab]
+SkinTab:Input({ Title = "Nome da Skin", PlaceholderText = "Digite o nome...", Callback = function(value) 
+    SavedSkinName = value 
+end})
+SkinTab:Button({ Title = "Salvar Skin", Callback = function()
+    if SavedSkinName ~= "" then
+        local success = pcall(function()
+            local event = ReplicatedStorage:FindFirstChild("AvatarEditor"):FindFirstChild("RemoteEvent")
+            if event then 
+                event:FireServer("create", SavedSkinName)
+                notify("Sucesso", "Skin salva com sucesso!", 3)
+            else
+                notify("Erro", "Evento de salvamento de skin não encontrado", 3)
+            end
+        end)
+        
+        if not success then
+            notify("Erro", "Falha ao salvar skin", 3)
+        end
+    else 
+        notify("Erro", "Defina um nome para salvar.", 5) 
+    end
+end})
+
+SkinTab:Dropdown({ Title = "Skin de Animais", Desc = "Selecione uma skin de animal para equipar.", Multi = false, Value = nil, AllowNone = true, Values = {"Skin de sapo", "Skin de capivara"}, Callback = function(selectedSkin)
+    if selectedSkin == "Skin de sapo" then 
+        EquipSkinSapo()
+    elseif selectedSkin == "Skin de capivara" then 
+        EquipSkinCapivara()
+    end
+end})
+
+-- [Stalk Tab]
+StalkTab:Input({ Title = "Digite o Nome do Jogador", Desc = "Insira o nome ou display name.", PlaceholderText = "Nome do jogador", Callback = function(playerName)
+    local playerFound
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Name:lower():find(playerName:lower()) or player.DisplayName:lower():find(playerName:lower()) then 
+            playerFound = player
+            break 
+        end
+    end
+    if playerFound then
+        notify("Informações do Jogador", "Nome: " .. playerFound.Name .. "\nDisplay Name: " .. playerFound.DisplayName .. "\nConta criada há: " .. playerFound.AccountAge .. " dias", 8)
+    else 
+        notify("Blessed Hub", "Jogador não encontrado.", 5) 
+    end
+end})
+
+-- [Teleportes Tab]
+TeleportTab:Input({ Title = "Selecionar Jogador", Desc = "Digite as iniciais do nome.", PlaceholderText = "Digite as iniciais...", Finished = true, Callback = function(value)
+    SelectedPlayer = GetPlayerByName(value)
+    if SelectedPlayer then 
+        notify("Jogador Selecionado", "Agora selecionado: " .. SelectedPlayer.Name, 5)
+    else 
+        notify("Erro", "Jogador não encontrado.", 5) 
+    end
+end})
+
+TeleportTab:Button({ Title = "Teleportar para Jogador", Callback = function() 
+    TeleportToPlayer(SelectedPlayer) 
+end})
+
+local clickTpConnection
+TeleportTab:Toggle({ Title = "Click TP", Value = false, Callback = function(state)
+    local Mouse = LocalPlayer:GetMouse()
+    if state then
+        clickTpConnection = Mouse.Button1Down:Connect(function()
+            local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+            local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+            humanoidRootPart.CFrame = CFrame.new(Mouse.Hit.p)
+            notify("Teleportado", "Você foi teletransportado para a posição clicada.", 5)
+        end)
+    else
+        if clickTpConnection then 
+            clickTpConnection:Disconnect()
+            clickTpConnection = nil 
+        end
+        notify("Desativado", "Click TP foi desativado.", 5)
+    end
+end})
+
+TeleportTab:Button({
+Title = "Centro do Mapa",
+Callback = function()
+game.Players.LocalPlayer.Character:MoveTo(Vector3.new(0, 16, -1))
+end
+})
+
+TeleportTab:Button({
+Title = "Portal",
+Callback = function()
+game.Players.LocalPlayer.Character:MoveTo(Vector3.new(-1, 24, -73))
+end
+})
+
+TeleportTab:Button({
+Title = "Placa Robux",
+Callback = function()
+game.Players.LocalPlayer.Character:MoveTo(Vector3.new(-0, 15, 76))
+end
+})
+
+TeleportTab:Button({
+Title = "Final Mapa -01",
+Callback = function()
+game.Players.LocalPlayer.Character:MoveTo(Vector3.new(-18, 3, 1019))
+end
+})
+
+TeleportTab:Button({
+Title = "Final Mapa -02",
+Callback = function()
+game.Players.LocalPlayer.Character:MoveTo(Vector3.new(-1018, 3, -9))
+end
+})
+
+TeleportTab:Button({
+Title = "Final Mapa -03",
+Callback = function()
+game.Players.LocalPlayer.Character:MoveTo(Vector3.new(1017, 3, 34))
+end
+})
+
+TeleportTab:Button({
+Title = "Final Mapa -04",
+Callback = function()
+game.Players.LocalPlayer.Character:MoveTo(Vector3.new(55, 3, -1018))
+end
+})
+
+-- [Troll Tab]
+-- 🟩 Serviços
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Variáveis globais
+local SelectedPlayer
+local BangActive = false
+local GetBangedActive = false
+local imitarChatConnection
+
+-- Função auxiliar para pegar jogador pelo nome ou displayName
+local function GetPlayerByName(name)
+name = name:lower()
+for _, plr in ipairs(Players:GetPlayers()) do
+if plr.Name:lower():sub(1, #name) == name or plr.DisplayName:lower():sub(1, #name) == name then
+return plr
+end
+end
+return nil
+end
+
+-- 🟢 Input: Selecionar jogador
+TrollTab:Input({
+Title = "Selecionar Jogador",
+Desc = "Digite parte do nome do jogador",
+PlaceholderText = "Ex: joao",
+Finished = true,
+Callback = function(value)
+SelectedPlayer = GetPlayerByName(value)
+end
+})
+
+-- 🟢 Toggle: Visualizar jogador
+TrollTab:Toggle({
+Title = "Visualizar Jogador",
+Value = false,
+Callback = function(state)
+if SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("Humanoid") then
+game.Workspace.CurrentCamera.CameraSubject = state and SelectedPlayer.Character.Humanoid or LocalPlayer.Character.Humanoid
+end
+end
+})
+
+-- 🟢 Toggle: Bang Player
+TrollTab:Toggle({
+Title = "Bang Player",
+Value = false,
+Callback = function(state)
+BangActive = state
+if BangActive and SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+local activeAnimation
+if humanoid then
+local animation = Instance.new("Animation")
+animation.AnimationId = "rbxassetid://10714068222"
+activeAnimation = humanoid:LoadAnimation(animation)
+activeAnimation:Play()
+activeAnimation:AdjustSpeed(2)
+end
+
+coroutine.wrap(function()
+while BangActive and SelectedPlayer and SelectedPlayer.Character do
+local targetHRP = SelectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+local localHRP = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+if targetHRP and localHRP then
+localHRP.CFrame = targetHRP.CFrame * CFrame.new(0, 0, 1.5)
+end
+task.wait(0.1)
+end
+if activeAnimation then activeAnimation:Stop() end
+end)()
+end
+end
+})
+
+-- 🟢 Toggle: Get Banged
+TrollTab:Toggle({
+Title = "Get Banged",
+Value = false,
+Callback = function(state)
+GetBangedActive = state
+if GetBangedActive and SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+local activeAnimation
+if humanoid then
+local animation = Instance.new("Animation")
+animation.AnimationId = "rbxassetid://10714360343"
+activeAnimation = humanoid:LoadAnimation(animation)
+activeAnimation:Play()
+end
+
+coroutine.wrap(function()
+while GetBangedActive and SelectedPlayer and SelectedPlayer.Character do
+local targetHRP = SelectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+local localHRP = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+if targetHRP and localHRP then
+localHRP.CFrame = targetHRP.CFrame * CFrame.new(0, 0, -1.5)
+end
+task.wait(0.1)
+end
+if activeAnimation then activeAnimation:Stop() end
+end)()
+end
+end
+})
+
+-- 🟢 Dropdown: Selecionar jogador para imitar chat
+local allPlayerNames = {}
+for _, plr in ipairs(Players:GetPlayers()) do
+table.insert(allPlayerNames, plr.DisplayName)
+end
+
+TrollTab:Dropdown({
+Title = "Selecionar Jogador para Imitar Chat",
+Desc = "Escolha um jogador para copiar o chat",
+Multi = false,
+Value = allPlayerNames[1] or nil,
+AllowNone = true,
+Values = allPlayerNames,
+Callback = function(selected)
+if selected[1] then
+for _, p in ipairs(Players:GetPlayers()) do
+if p.DisplayName == selected[1] then
+SelectedPlayer = p
+break
+end
+end
+end
+end
+})
+
+-- 🟢 Toggle: Imitar Chat
+TrollTab:Toggle({
+Title = "Imitar Chat",
+Value = false,
+Callback = function(enabled)
+if enabled then
+if SelectedPlayer then
+imitarChatConnection = SelectedPlayer.Chatted:Connect(function(msg)
+pcall(function()
+game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(msg)
+end)
+end)
+end
+else
+if imitarChatConnection then
+imitarChatConnection:Disconnect()
+end
+end
+end
+})
+
+TrollTab:Button({ Title = "Jerk", Desc = "Clique para iniciar a ação.", Callback = function() 
+    local success = pcall(function()
+        loadstring(game:HttpGet("https://pastefy.app/YZoglOyJ/raw"))()
+    end)
+    
+    if not success then
+        notify("Erro", "Falha ao executar script de troll", 3)
+    end
+end })
+
+-- [Bypass Tab]
+BypassTab:Button({ Title = "Tentar Entrar no Voice Chat", Callback = function()
+    local success, errorMessage = pcall(function() 
+        game:GetService("VoiceChatService"):JoinVoice() 
+    end)
+    if success then 
+        notify("Sucesso", "Você entrou no Voice Chat!", 2)
+    else 
+        notify("Erro", "Não foi possível entrar no Voice Chat. Erro: " .. tostring(errorMessage), 2) 
+    end
+end})
+
+-- [Música Tab]
+local MusicInput = MusicTab:Input({ Title = "ID da Música", Placeholder = "Insira o ID aqui...", Callback = function(value) 
+    MusicInput.Value = value 
+end})
+MusicTab:Button({ Title = "Tocar Música do Input", Callback = function()
+    local songID = tonumber(MusicInput.Value)
+    if songID then 
+        playMusic(songID)
+        notify("Música Personalizada", "Tocando ID: " .. songID, 2)
+    else 
+        notify("Erro", "Por favor, insira um ID válido!", 2) 
+    end
+end})
+MusicTab:Dropdown({ Title = "Funk", Multi = false, Value = nil, AllowNone = true, Values = { "Fuga na VT", "Dim Dim Dom", "Ela Sentou Gostou", "Marciin", "Se Prepara", "Papi", "Halloween", "Voando Alto", "Corpo Suado", "Spring Love", "12 Do Cinga", "Os Cria", "Maria Penha", "Me Apaixonei", "Funk House" }, Callback = function(selectedMusic)
+    local songIDs = { 
+        ["Fuga na VT"] = "131891110268352", 
+        ["Dim Dim Dom"] = "93993692602344", 
+        ["Ela Sentou Gostou"] = "81791559745283", 
+        ["Marciin"] = "87789757659257", 
+        ["Se Prepara"] = "98063604604756", 
+        ["Papi"] = "139086778929473", 
+        ["Halloween"] = "83875675100660", 
+        ["Voando Alto"] = "110475831724424", 
+        ["Corpo Suado"] = "130664328738685", 
+        ["Spring Love"] = "102930993846348", 
+        ["12 Do Cinga"] = "80112997683181", 
+        ["Os Cria"] = "104498738218748", 
+        ["Maria Penha"] = "125193414124436", 
+        ["Me Apaixonei"] = "113456637133741", 
+        ["Funk House"] = "131201909953525" 
+    }
+    if songIDs[selectedMusic] then 
+        playMusic(songIDs[selectedMusic])
+        notify("Funk Selecionado", "Tocando: " .. selectedMusic, 2)
+    end
+end})
+MusicTab:Slider({ Title = "Volume da Música", Step = 1, Value = { Min = 0, Max = 100, Default = 20 }, Callback = function(value)
+    if currentSound then 
+        currentSound.Volume = value / 100
+        notify("Volume Ajustado", "Volume: " .. value, 2)
+    end
+end})
+MusicTab:Button({ Title = "Parar Música", Callback = function() 
+    stopMusic() 
+end})
+
+-- [Parceiros Tab]
+ParceirosTab:Input({ Title = "JobId do Servidor", Placeholder = "Cole o JobId aqui...", Callback = function(value) 
+    jobId = value 
+end})
+ParceirosTab:Button({ Title = "Entrar no Servidor", Callback = function()
+    if jobId and jobId ~= "" then 
+        TeleportService:TeleportToPlaceInstance(PlaceId, jobId, LocalPlayer)
+        notify("Entrando...", "Você está sendo teleportado!", 3)
+    else 
+        notify("Erro", "Digite um JobId válido!", 3) 
+    end
+end})
+ParceirosTab:Button({ Title = "Copiar Meu JobId", Callback = function()
+    setclipboard(game.JobId)
+    notify("Copiado!", "Seu JobId foi copiado!", 2)
+end})
+
+-- [Tags Tab]
+TagTab:Dropdown({ Title = "Escolha uma tag (chat)", Multi = false, Value = nil, AllowNone = true, Values = { "[MOD]", "[BLESSED]", "[⚒️]" }, Callback = function(selectedTag)
+    SelectedTag = selectedTag
+    notify("Tag Selecionada", "Selecionado: " .. (selectedTag or "Nenhuma"), 2)
+end})
+
+-- [Item Tab]
+ItemTab:Button({ Title = "Pegar Pistol Gun", Callback = function() 
+    getItem("Pistol Gun", "12888018694") 
+end})
+ItemTab:Button({ Title = "Pegar Shotgun 2", Callback = function() 
+    getItem("Shotgun 2", "178785159") 
+end})
+ItemTab:Button({ Title = "Pegar Uzi", Callback = function() 
+    getItem("Uzi", "128105460088314") 
+end})
+ItemTab:Button({ Title = "Pegar M4A1", Callback = function() 
+    getItem("M4A1", "10635966401") 
+end})
+ItemTab:Button({ Title = "Pegar Celular", Callback = function() 
+    getItem("Celular", "2143355240") 
+end})
+
+-- [Admin Tab]
+-- --- Funções de Comandos (Admin) ---
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
+local VoiceChatService = game:GetService("VoiceChatService")
+local LocalPlayer = Players.LocalPlayer
+
+local respawnAtDeathPosition = false
+local ColorChangeActive = false
+local savedSpawn = nil
+local spawnEnabled = false
+local loopResetActive = false
+local loopResetThread = nil
+
+local commandsList = {
+";copy [jogador] - Copia a skin do jogador.",
+";tp [jogador] - Teleporta até o jogador.",
+";ws [valor] - Define velocidade.",
+";rews - Velocidade padrão (16).",
+";jp [valor] - Define pulo.",
+";rejp - Pulo padrão (10).",
+";re - Reseta skin.",
+";reset - Reinicia personagem no local da morte.",
+";autocolor_on - Cor automática ativada.",
+";autocolor_off - Cor automática desativada.",
+";rejoin - Reentra no servidor.",
+";view [jogador] - Visualiza jogador.",
+";unview - Para de visualizar.",
+";spawn - Salva posição atual como spawn.",
+";remove_spawn - Remove spawn salvo.",
+";loop-reset - Ativa loop de reset.",
+";unloop-reset - Desativa loop de reset.",
+";unbanvc - Reentra no Voice Chat.",
+";cmds - Lista todos comandos."
+}
+
+-- Função para achar jogador por nome ou display name
+local function FindPlayer(name)
+for _, p in ipairs(Players:GetPlayers()) do
+if p.Name:lower():sub(1, #name) == name:lower() or p.DisplayName:lower():sub(1, #name) == name:lower() then
+return p
+end
+end
+end
+
+-- Funções principais
+local function CopySkin(name)
+local target = FindPlayer(name)
+if target and target.Character and target.Character:FindFirstChild("Humanoid") then
+local args = { target.Character.Humanoid.HumanoidDescription, true }
+ReplicatedStorage.Events.TryBuy.Try:FireServer(unpack(args))
+notify("Blessed Hub", "Skin copiada de: " .. target.Name, 3)
+else
+notify("Blessed Hub", "Jogador não encontrado.", 3)
+end
+end
+
+local function TeleportToPlayer(name)
+local target = FindPlayer(name)
+local myChar = LocalPlayer.Character
+if target and target.Character and myChar then
+local tHRP = target.Character:FindFirstChild("HumanoidRootPart")
+local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+if tHRP and myHRP then
+myHRP.CFrame = tHRP.CFrame
+notify("Blessed Hub", "Teleportado para: " .. target.Name, 3)
+end
+end
+end
+
+local function SetSpeed(val)
+local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+if hum then
+hum.WalkSpeed = tonumber(val) or 16
+notify("Blessed Hub", "Velocidade: " .. hum.WalkSpeed, 3)
+end
+end
+
+local function SetJumpHeight(val)
+local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+if hum then
+hum.JumpHeight = tonumber(val) or 10
+notify("Blessed Hub", "Pulo: " .. hum.JumpHeight, 3)
+end
+end
+
+local function ResetSkin()
+ReplicatedStorage:WaitForChild("Events"):WaitForChild("Refresh"):FireServer()
+notify("Blessed Hub", "Skin reiniciada.", 3)
+end
+
+local function ResetCharacter()
+local char = LocalPlayer.Character
+if char and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") then
+local pos = char.HumanoidRootPart.Position
+respawnAtDeathPosition = true
+LocalPlayer.CharacterAdded:Once(function(newChar)
+newChar:WaitForChild("HumanoidRootPart")
+repeat task.wait() until newChar:FindFirstChild("Humanoid") and newChar.Humanoid.Health > 0
+if respawnAtDeathPosition then
+task.wait(0.1)
+newChar.HumanoidRootPart.CFrame = CFrame.new(pos)
+respawnAtDeathPosition = false
+end
+end)
+char.Humanoid.Health = 0
+else
+notify("Blessed Hub", "Erro ao resetar personagem.", 3)
+end
+end
+
+local function StartColorChange()
+task.spawn(function()
+while ColorChangeActive do
+if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+local newColor = Color3.new(math.random(), math.random(), math.random())
+local args = {
+[1] = {
+["BodyColor"] = {
+["HeadColor"] = newColor,
+["TorsoColor"] = newColor,
+["LeftArmColor"] = newColor,
+["RightArmColor"] = newColor,
+["LeftLegColor"] = newColor,
+["RightLegColor"] = newColor
+}
+}
+}
+ReplicatedStorage.BloxbizRemotes.CatalogOnApplyToRealHumanoid:FireServer(unpack(args))
+end
+task.wait(0.1)
+end
+end)
+end
+
+local function Rejoin()
+TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+end
+
+local function ViewPlayer(playerName)
+local target = FindPlayer(playerName)
+if target and target.Character then
+local humanoid = target.Character:FindFirstChildOfClass("Humanoid")
+if humanoid then
+workspace.CurrentCamera.CameraSubject = humanoid
+notify("Blessed Hub", "Visualizando: " .. target.Name, 3)
+end
+else
+notify("Blessed Hub", "Jogador não encontrado.", 3)
+end
+end
+
+local function UnviewPlayer()
+local char = LocalPlayer.Character
+if char then
+local humanoid = char:FindFirstChildOfClass("Humanoid")
+if humanoid then
+workspace.CurrentCamera.CameraSubject = humanoid
+notify("Blessed Hub", "Parou de visualizar outros jogadores.", 3)
+end
+end
+end
+
+local function StartLoopReset()
+if loopResetActive then return end
+loopResetActive = true
+notify("Loop Reset", "Loop de reset ativado!", 3)
+loopResetThread = task.spawn(function()
+while loopResetActive do
+if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+LocalPlayer.Character.Humanoid.Health = 0
+end
+task.wait(0.5)
+end
+end)
+end
+
+local function StopLoopReset()
+if not loopResetActive then return end
+loopResetActive = false
+notify("Loop Reset", "Loop de reset desativado!", 3)
+end
+
+-- Função principal de comandos
+function handleChatCommand(message)
+local msg = message:lower()
+local args = string.split(msg, " ")
+local command = args[1]
+local param = table.concat(args, " ", 2)
+
+if command == ";copy" then CopySkin(param)
+elseif command == ";tp" then TeleportToPlayer(param)
+elseif command == ";ws" then SetSpeed(param)
+elseif command == ";rews" then SetSpeed(16)
+elseif command == ";jp" then SetJumpHeight(param)
+elseif command == ";rejp" then SetJumpHeight(10)
+elseif command == ";re" then ResetSkin()
+elseif command == ";reset" then ResetCharacter()
+elseif command == ";autocolor_on" then if not ColorChangeActive then ColorChangeActive = true StartColorChange() notify("Blessed Hub", "Cor automática ativada.", 3) end
+elseif command == ";autocolor_off" then ColorChangeActive = false notify("Blessed Hub", "Cor automática desativada.", 3)
+elseif command == ";rejoin" then notify("Blessed Hub", "Reentrando no servidor...", 3) Rejoin()
+elseif command == ";view" then ViewPlayer(param)
+elseif command == ";unview" then UnviewPlayer()
+elseif command == ";spawn" then
+if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+savedSpawn = LocalPlayer.Character.HumanoidRootPart.CFrame
+spawnEnabled = true
+notify("Spawn", "Spawn salvo com sucesso!", 3)
+end
+elseif command == ";remove_spawn" then
+savedSpawn = nil
+spawnEnabled = false
+notify("Spawn", "Spawn removido com sucesso!", 3)
+elseif command == ";loop-reset" then StartLoopReset()
+elseif command == ";unloop-reset" then StopLoopReset()
+elseif command == ";unbanvc" then
+local success, err = pcall(function() return VoiceChatService:JoinVoice() end)
+if success then notify("Blessed Hub", "Você entrou no Voice Chat!", 3)
+else notify("Blessed Hub", "Erro ao entrar no Voice Chat: " .. tostring(err), 3)
+end
+elseif command == ";cmds" then
+notify("Comandos Disponíveis", table.concat(commandsList, "\n"), 15)
+end
+end
+
+-- // Evento para os comandos de chat (Admin)
+LocalPlayer.Chatted:Connect(handleChatCommand)
+
+-- Botões da Admin Tab
+AdminTab:Button({ Title = "Ativar Comandos ADM", Description = "Digite os comandos no chat, ex: ;copy nome", Callback = function()
+notify("Blessed Hub", "Comandos de ADM ativados! Digite ;cmds no chat para ver.", 2)
+end})
+AdminTab:Button({ Title = "Ver Comandos Disponíveis", Description = "Lista todos os comandos que você pode usar no chat.", Callback = function()
+notify("Comandos Disponíveis", table.concat(commandsList, "\n"), 15)
+end})
+
+-- [Settings/Window Tab]
+WindowTab:Button({ Title = "Relogar", Desc = "Clique aqui para relogar no jogo.", Callback = function() 
+    TeleportService:Teleport(PlaceId, Player) 
+end})
+
+-- [Extras Tab]
+ExtraTab:Button({ Title = "Executar Infinite Yield", Desc = "Clique para executar o script Infinite Yield.", Callback = function()
+    local success, err = pcall(function() 
+        loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))() 
+    end)
+    if success then 
+        notify("Script Executado", "Infinite Yield foi executado com sucesso.", 5)
+    else 
+        notify("Erro", "Falha ao executar o script: " .. tostring(err), 5) 
+    end
+end})
+
+-- =====================================================
+-- 4. CONEXÕES DE EVENTOS E EXECUÇÃO INICIAL
+-- =====================================================
+
+-- Evento para Noclip
+RunService.Stepped:Connect(function()
+    if noclip then
+        local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- Evento para o sistema de Tags
+pcall(function()
+    TextChatService.OnIncomingMessage = function(message: TextChatMessage)
+        local properties = Instance.new("TextChatMessageProperties")
+        if message.TextSource then
+            local player = Players:GetPlayerByUserId(message.TextSource.UserId)
+            if player == LocalPlayer then
+                properties = ApplyTagToMessage(message)
+            else
+                properties.PrefixText = message.PrefixText
+            end
+        end
+        return properties
+    end
+end)
+
+-- Execução inicial do script
+pcall(function()
+    playSound()
+    notify("Blessed Hub", "Script carregado com sucesso!", 3)
+end)
