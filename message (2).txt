@@ -381,6 +381,30 @@ local function createUserTag(player)
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 15)
     corner.Parent = glow
+    
+    -- Torna a tag permanente mesmo se o jogador trocar de skin
+    local function ensureTag()
+        if not player.Character or not player.Character:FindFirstChild("Head") then return end
+        if not player.Character.Head:FindFirstChild("BlessedUserTag") then
+            createUserTag(player)
+        end
+    end
+    
+    -- Conecta eventos para garantir que a tag permaneça
+    player.CharacterAdded:Connect(function()
+        task.wait(1) -- Espera um pouco para garantir que o personagem esteja completamente carregado
+        createUserTag(player)
+    end)
+    
+    -- Verifica periodicamente se a tag ainda existe
+    local checkConnection
+    checkConnection = RunService.Heartbeat:Connect(function()
+        if not player or not player.Parent then
+            checkConnection:Disconnect()
+            return
+        end
+        ensureTag()
+    end)
 end
 
 -- Função para verificar se um jogador é um usuário do Blessed Hub
@@ -1555,6 +1579,12 @@ end
 local function CopySkin(name)
 local target = FindPlayer(name)
 if target and target.Character and target.Character:FindFirstChild("Humanoid") then
+    -- Verifica se o jogador permite cópia de skin
+    if not allowSkinCopy then
+        notify("Erro", "Este jogador não permite cópia de skin.", 3)
+        return
+    end
+    
 local args = { target.Character.Humanoid.HumanoidDescription, true }
 ReplicatedStorage.Events.TryBuy.Try:FireServer(unpack(args))
 notify("Blessed Hub", "Skin copiada de: " .. target.Name, 3)
@@ -1736,10 +1766,10 @@ LocalPlayer.Chatted:Connect(handleChatCommand)
 
 -- Botões da Admin Tab
 AdminTab:Button({ Title = "Ativar Comandos ADM", Description = "Digite os comandos no chat, ex: ;copy nome", Callback = function()
-notify("Blessed Hub", "Comandos de ADM ativados! Digite ;cmds no chat para ver.", 2)
+    notify("Blessed Hub", "Comandos de ADM ativados! Digite ;cmds no chat para ver.", 2)
 end})
 AdminTab:Button({ Title = "Ver Comandos Disponíveis", Description = "Lista todos os comandos que você pode usar no chat.", Callback = function()
-notify("Comandos Disponíveis", table.concat(commandsList, "\n"), 15)
+    notify("Comandos Disponíveis", table.concat(commandsList, "\n"), 15)
 end})
 
 -- [Settings/Window Tab]
