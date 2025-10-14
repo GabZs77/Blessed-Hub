@@ -57,7 +57,7 @@ local function applyShaders()
             end 
         end 
         model.ChildAdded:Connect(function(obj) 
-            if obj:IsA("BasePart") and (obj.Name == "Sidewalk" or obj.Name == "Wedge") and obj.Material == Enum.Material.SmoothPlastic then 
+            if obj:IsA("BasePart") and (obj.Name == "Sidewalk" or o.Name == "Wedge") and obj.Material == Enum.Material.SmoothPlastic then 
                 obj.Material = Enum.Material.Cobblestone 
             end 
         end) 
@@ -322,7 +322,7 @@ local currentSound = nil
 local SelectedTag = nil
 local respawnAtDeathPosition = false
 local jobId = nil
-local allowSkinCopy = true -- Nova variável para controle de cópia de skin
+local allowSkinCopy = true -- Nova variável para controlar se outros podem copiar a skin
 
 -- IDs e Constantes
 local soundId = "rbxassetid://1836973601"
@@ -333,79 +333,6 @@ local soundId = "rbxassetid://1836973601"
 
 -- Tabela que armazenará os usuários ativos do Blessed Hub no servidor
 local BLESSED_USERS = {}
-
--- Função para criar uma tag flutuante acima da cabeça do jogador
-local function createUserTag(player)
-    -- Verifica se o jogador já tem uma tag
-    if player.Character and player.Character:FindFirstChild("BlessedUserTag") then
-        return
-    end
-    
-    -- Espera o personagem carregar completamente
-    if not player.Character then
-        player.CharacterAdded:Wait()
-    end
-    
-    local head = player.Character:WaitForChild("Head")
-    
-    -- Cria o BillboardGui diretamente na cabeça do jogador
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "BlessedUserTag"
-    billboard.Size = UDim2.new(0, 100, 0, 50)
-    billboard.StudsOffset = Vector3.new(0, 1, 0) -- Ajustado para ficar logo acima da cabeça
-    billboard.AlwaysOnTop = true
-    billboard.Parent = head
-    
-    -- Cria o texto da tag
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.Text = "USER"
-    textLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
-    textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    textLabel.TextStrokeTransparency = 0
-    textLabel.Font = Enum.Font.SourceSansBold
-    textLabel.TextSize = 14
-    textLabel.Parent = billboard
-    
-    -- Adiciona um brilho à tag
-    local glow = Instance.new("Frame")
-    glow.Size = UDim2.new(1, 10, 1, 10)
-    glow.Position = UDim2.new(0, -5, 0, -5)
-    glow.BackgroundTransparency = 0.7
-    glow.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
-    glow.BorderSizePixel = 0
-    glow.Parent = textLabel
-    
-    -- Adiciona um efeito de arredondamento ao brilho
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 15)
-    corner.Parent = glow
-    
-    -- Torna a tag permanente mesmo se o jogador trocar de skin
-    local function ensureTag()
-        if not player.Character or not player.Character:FindFirstChild("Head") then return end
-        if not player.Character.Head:FindFirstChild("BlessedUserTag") then
-            createUserTag(player)
-        end
-    end
-    
-    -- Conecta eventos para garantir que a tag permaneça
-    player.CharacterAdded:Connect(function()
-        task.wait(1) -- Espera um pouco para garantir que o personagem esteja completamente carregado
-        createUserTag(player)
-    end)
-    
-    -- Verifica periodicamente se a tag ainda existe
-    local checkConnection
-    checkConnection = RunService.Heartbeat:Connect(function()
-        if not player or not player.Parent then
-            checkConnection:Disconnect()
-            return
-        end
-        ensureTag()
-    end)
-end
 
 -- Função para verificar se um jogador é um usuário do Blessed Hub
 local function isBlessedUser(player)
@@ -422,17 +349,6 @@ end
 local function addBlessedUser(player)
     if not isBlessedUser(player) then
         table.insert(BLESSED_USERS, player.UserId)
-        
-        -- Adiciona a tag visual ao jogador
-        if player.Character then
-            createUserTag(player)
-        end
-        
-        -- Conecta o evento de adição de personagem para adicionar a tag quando o jogador respawnar
-        player.CharacterAdded:Connect(function(character)
-            task.wait(1) -- Espera um pouco para garantir que o personagem esteja completamente carregado
-            createUserTag(player)
-        end)
     end
 end
 
@@ -493,13 +409,13 @@ function getHumanoid()
 end
 
 function CopyPlayerSkin(player)
-    -- Verifica se o jogador permite cópia de skin
-    if not allowSkinCopy then
-        notify("Erro", "Este jogador não permite cópia de skin.", 3)
-        return
-    end
-    
     if player and player.Character and player.Character:FindFirstChild("Humanoid") then
+        -- Verifica se o jogador permite cópia de skin
+        if not allowSkinCopy then
+            notify("Erro", "Este jogador não permite cópia de skin.", 3)
+            return
+        end
+        
         local humanoidDescription = player.Character.Humanoid.HumanoidDescription
         local args = {
             [1] = humanoidDescription,
@@ -807,6 +723,10 @@ MainTab:Toggle({ Title = "Visualizar Jogador", Value = false, Callback = functio
         notify("Erro", "Nenhum jogador válido selecionado.", 5) 
     end
 end})
+MainTab:Toggle({ Title = "Podem copiar sua skin?", Value = true, Callback = function(state)
+    allowSkinCopy = state
+    notify("Permissão de Cópia", state and "Outros usuários podem copiar sua skin" or "Outros usuários não podem copiar sua skin", 3)
+end})
 MainTab:Button({ Title = "Copiar Skin", Callback = function()
     if SelectedPlayer then 
         CopyPlayerSkin(SelectedPlayer) 
@@ -836,16 +756,6 @@ MainTab:Toggle({ Title = "Copiar Skin ao Clicar", Value = false, Callback = func
         notify("Desativado", "Copiar Skin ao Clicar foi desativado.", 5)
     end
 end})
-
--- Toggle para permitir cópia de skin
-MainTab:Toggle({ 
-    Title = "Podem copiar sua skin", 
-    Value = allowSkinCopy, 
-    Callback = function(state)
-        allowSkinCopy = state
-        notify("Configuração", state and "Agora outros usuários podem copiar sua skin" or "Agora outros usuários não podem copiar sua skin", 3)
-    end 
-})
 
 -- [Player Tab]
 PlayerTab:Slider({ Title = "Campo de Visão (FOV)", Step = 1, Value = { Min = 20, Max = 120, Default = 70 }, Callback = function(value) 
