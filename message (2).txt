@@ -2775,6 +2775,8 @@ local PagodeDropdown = MusicTab:Dropdown({
     Values = {
         "Pagode 1",  -- ID: 1838888602
         "Pagode 2",  -- ID: 113504863495384
+        "Piseiro 1",  -- ID: 70508008395270
+        "Piseiro 2",  -- ID: 82929658013383
     },
     Callback = function(selectedMusic)
         local songID = ""
@@ -2782,6 +2784,11 @@ local PagodeDropdown = MusicTab:Dropdown({
             songID = "1838888602"
         elseif selectedMusic == "Pagode 2" then
             songID = "113504863495384"
+        elseif selectedMusic == "Piseiro 1" then
+            songID = "70508008395270"
+        elseif selectedMusic == "Piseiro 2" then
+            songID = "82929658013383"
+
         end
 
         playMusic(songID)  
@@ -2847,53 +2854,74 @@ local FunkDropdown = MusicTab:Dropdown({
     AllowNone = true,
     Values = {
         "Fuga na VT",   -- ID: 131891110268352
-        "Dim Dim Dom",   -- ID: 93993692602344
-        "Ela Sentou Gostou, Kikou e Gostou",   -- ID: 81791559745283
-        "Marciin (Funk top)",   -- ID: 87789757659257
-        "Se Prepara",   -- ID: 98063604604756
-        "Papi",   -- ID: 139086778929473
-        "Halloween",   -- ID: 83875675100660
-        "Voando Alto",  -- ID: 110475831724424
-        "Corpo Suado",  -- ID: 130664328738685
-        "Spring Love",   -- ID: 102930993846348
-        "12 Do Cinga",   -- ID: 80112997683181
-        "Os Cria",  -- ID: 104498738218748
-        "Maria Penha",  -- ID: 125193414124436
-        "Me Apaixonei",  -- ID: 113456637133741
-        "Funk House",  -- ID: 131201909953525
+        "Apologia",   -- ID: 137963518593865
+        "Ai meu p*ru",   -- ID: 81700399219236
+        "Eu não vou parar (Melody)",   -- ID: 83064304128591
+        "Toma toma toma",   -- ID: 86685635786943
+        "Ela fez 18 anos",   -- ID: 73774331093132
+        "Os alemão tem medo",   -- ID: 93146696739126
+        "Primeiro Comando",  -- ID: 84928031488498
+        "Subo o voucher",  -- ID: 76312991186384
+        "Rebola pro pai",   -- ID: 95046091312570
+        "Ela kik, ela desce",  -- ID: 122039107528238
+        "XL",  -- ID: 96215620202470
+        "Paixão (MC Marcin)",  -- ID: 104481380959795
+        "Faz a Rodinha - RJ",  -- ID: 127013133418864
+        "Faz a pose",  -- ID: 88339486019486
+        "Favela",  -- ID: 97097857368633
+        "Os cria tá de radinho",  -- ID: 139693447546059
+        "Se entrega pra mim",  -- ID: 131847084942844
+        "Bonde do estelionato",  -- ID: 72182615662988
+        "Hoje vou ser tua mulher",  -- ID: 79120642849019
+        "Fica de 4",  -- ID: 139745829218874
+        "Tropa dos Paraiba",  -- ID: 110860247960302
     },
     Callback = function(selectedMusic)
         local songID = ""
         if selectedMusic == "Fuga na VT" then
             songID = "131891110268352"
-        elseif selectedMusic == "Dim Dim Dom" then
-            songID = "93993692602344"
-        elseif selectedMusic == "Ela Sentou Gostou, Kikou e Gostou" then
-            songID = "81791559745283"
-        elseif selectedMusic == "Marciin (Funk top)" then
-            songID = "87789757659257"
-        elseif selectedMusic == "Se Prepara" then
-            songID = "98063604604756"
-        elseif selectedMusic == "Papi" then
-            songID = "139086778929473"
-        elseif selectedMusic == "Halloween" then
-            songID = "83875675100660"
-        elseif selectedMusic == "Voando Alto" then
-            songID = "110475831724424"
-        elseif selectedMusic == "Corpo Suado" then
-            songID = "130664328738685"
-        elseif selectedMusic == "Spring Love" then
-            songID = "102930993846348"
-        elseif selectedMusic == "12 Do Cinga" then
-            songID = "80112997683181"
-        elseif selectedMusic == "Os Cria" then
-            songID = "104498738218748"
-        elseif selectedMusic == "Maria Penha" then
-            songID = "125193414124436"
-        elseif selectedMusic == "Me Apaixonei" then
-            songID = "113456637133741"
-        elseif selectedMusic == "Funk House" then
-            songID = "131201909953525"
+        elseif selectedMusic == "Apologia" then
+            songID = "137963518593865"
+        elseif selectedMusic == "Ai meu p*ru" then
+            songID = "81700399219236"
+        elseif selectedMusic == "Eu não vou parar (Melody)" then
+            songID = "83064304128591"
+        elseif selectedMusic == "Toma toma toma" then
+            songID = "86685635786943"
+        elseif selectedMusic == "Ela fez 18 anos" then
+            songID = "73774331093132"
+        elseif selectedMusic == "Os alemão tem medo" then
+            songID = "93146696739126"
+        elseif selectedMusic == "Primeiro Comando" then
+            songID = "84928031488498"
+        elseif selectedMusic == "Subo o voucher" then
+            songID = "76312991186384"
+        elseif selectedMusic == "Rebola pro pai" then
+            songID = "95046091312570"
+        elseif selectedMusic == "Ela kik, ela desce" then
+            songID = "122039107528238"
+        elseif selectedMusic == "XL" then
+            songID = "96215620202470"
+        elseif selectedMusic == "Paixão (MC Marcin)" then
+            songID = "104481380959795"
+        elseif selectedMusic == "Faz a Rodinha - RJ" then
+            songID = "127013133418864"
+        elseif selectedMusic == "Faz a pose" then
+            songID = "88339486019486"
+        elseif selectedMusic == "Favela" then
+            songID = "97097857368633"
+        elseif selectedMusic == "Os cria tá de radinho" then
+            songID = "139693447546059"
+        elseif selectedMusic == "Se entrega pra mim" then
+            songID = "131847084942844"
+        elseif selectedMusic == "Bonde do estelionato" then
+            songID = "72182615662988"
+        elseif selectedMusic == "Hoje vou ser tua mulher" then
+            songID = "79120642849019"
+        elseif selectedMusic == "Fica de 4" then
+            songID = "139745829218874"
+        elseif selectedMusic == "Tropa dos Paraiba" then
+            songID = "110860247960302"
         end
 
         playMusic(songID)  
@@ -2913,14 +2941,26 @@ local TrapDropdown = MusicTab:Dropdown({
     AllowNone = true,
     Values = {
         "Levanta",  -- ID: 100447808642458
-        "Em Breve?",  -- ID: 0
-    },
+        "Trap 1",  -- ID: 131582258401093
+        "Trap 2",  -- ID: 82352229287327
+        "My love",  -- ID: 82918318113042
+        "PlugStar",  -- ID: 123509716049820
+        "Menor Muito Exibido",  -- ID: 107434160225620
+},
     Callback = function(selectedMusic)
         local songID = ""
         if selectedMusic == "Levanta" then
             songID = "100447808642458"
-        elseif selectedMusic == "Em Breve?" then
-            songID = "0"
+        elseif selectedMusic == "Trap 1" then
+            songID = "131582258401093"
+        elseif selectedMusic == "Trap 2" then
+            songID = "82352229287327"
+        elseif selectedMusic == "My love" then
+            songID = "82918318113042"
+        elseif selectedMusic == "PlugStar" then
+            songID = "123509716049820"
+        elseif selectedMusic == "Menor Muito Exibido" then
+            songID = "107434160225620"
         end
 
         playMusic(songID)  
@@ -2939,25 +2979,16 @@ local BeatDropdown = MusicTab:Dropdown({
     Value = nil,  
     AllowNone = true,
     Values = {
-        "Catucada",  -- ID: 118875336917956
-        "Piranha Vem",  -- ID: 124477584275910
-        "Ooi",  -- ID: 130944058486069
-        "Brotar na treta",  -- ID: 87645805996301
-        "Apaga Luz Apaga Tudo",  -- ID: 117185503354295
+        "Bailão",  -- ID: 87645805996301
+        "Mundo das Trevas",  -- ID: 117185503354295
         "CRAZY",  -- ID: 136339454073308
     },
     Callback = function(selectedMusic)
         local songID = ""
-        if selectedMusic == "Catucada" then
-            songID = "118875336917956"
-        elseif selectedMusic == "Piranha Vem" then
-            songID = "124477584275910"
-        elseif selectedMusic == "Ooi" then
-            songID = "130944058486069"
-        elseif selectedMusic == "Brotar na treta" then
-            songID = "87645805996301"
-        elseif selectedMusic == "Apaga Luz Apaga Tudo" then
-            songID = "117185503354295"
+        if selectedMusic == "Bailão" then
+            songID = "75277620053736"
+        elseif selectedMusic == "Mundo das Trevas" then
+            songID = "122192366231455"
         elseif selectedMusic == "CRAZY" then
             songID = "136339454073308"
         end
@@ -3477,3 +3508,4 @@ PremiumTab:Button({
         })
     end
 })
+
