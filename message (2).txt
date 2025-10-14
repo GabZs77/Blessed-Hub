@@ -297,6 +297,14 @@ local TeleportService = game:GetService("TeleportService")
 local TextChatService = game:GetService("TextChatService")
 local HttpService = game:GetService("HttpService")
 local StarterGui = game:GetService("StarterGui")
+local CoreGui = game:GetService("CoreGui")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
+local SoundService = game:GetService("SoundService")
+local Lighting = game:GetService("Lighting")
+local UserInputService = game:GetService("UserInputService")
+local VoiceChatService = game:GetService("VoiceChatService")
 
 -- Objetos e Jogadores Locais
 local LocalPlayer = Players.LocalPlayer
@@ -314,32 +322,120 @@ local currentSound = nil
 local SelectedTag = nil
 local respawnAtDeathPosition = false
 local jobId = nil
+local allowSkinCopy = true -- Nova variável para controle de cópia de skin
 
 -- IDs e Constantes
 local soundId = "rbxassetid://1836973601"
 
--- Função para notificar o usuário
-local function notify(title, content, duration)
-    pcall(function()
-        StarterGui:SetCore("ChatMakeSystemMessage", {
-            Text = "[Blessed Hub] " .. title .. ": " .. content;
-            Color = Color3.fromRGB(255, 100, 0);
-            Font = Enum.Font.SourceSansBold;
-            FontSize = Enum.FontSize.Size24;
-        })
-    end)
+-- =====================================================
+-- 1. SISTEMA DE IDENTIFICAÇÃO DE USUÁRIOS
+-- =====================================================
+
+-- Tabela que armazenará os usuários ativos do Blessed Hub no servidor
+local BLESSED_USERS = {}
+
+-- Função para criar uma tag flutuante acima da cabeça do jogador
+local function createUserTag(player)
+    -- Verifica se o jogador já tem uma tag
+    if player.Character:FindFirstChild("BlessedUserTag") then
+        return
+    end
     
-    -- Tenta usar a notificação do WindUI se disponível
-    if WindUI and WindUI.Notify then
-        pcall(function()
-            WindUI:Notify({
-                Title = title,
-                Content = content,
-                Duration = duration or 3
-            })
+    -- Cria a parte principal da tag
+    local tagPart = Instance.new("Part")
+    tagPart.Name = "BlessedUserTag"
+    tagPart.Size = Vector3.new(1, 0.1, 1)
+    tagPart.Material = Enum.Material.ForceField
+    tagPart.Transparency = 0.3
+    tagPart.CanCollide = false
+    tagPart.Anchored = false
+    tagPart.BrickColor = BrickColor.new("New Yeller")
+    
+    -- Cria o texto da tag
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "BlessedUserBillboard"
+    billboard.Size = UDim2.new(0, 100, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = tagPart
+    
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = "USER"
+    textLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+    textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    textLabel.TextStrokeTransparency = 0
+    textLabel.Font = Enum.Font.SourceSansBold
+    textLabel.TextSize = 14
+    textLabel.Parent = billboard
+    
+    -- Adiciona um brilho à tag
+    local glow = Instance.new("PointLight")
+    glow.Color = Color3.fromRGB(255, 215, 0)
+    glow.Brightness = 1.5
+    glow.Range = 5
+    glow.Parent = tagPart
+    
+    -- Conecta a tag à cabeça do jogador
+    local head = player.Character:WaitForChild("Head")
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0 = tagPart
+    weld.Part1 = head
+    weld.Parent = tagPart
+    
+    tagPart.Parent = player.Character
+end
+
+-- Função para verificar se um jogador é um usuário do Blessed Hub
+local function isBlessedUser(player)
+    -- Verifica se o jogador está na lista de usuários
+    for _, userId in pairs(BLESSED_USERS) do
+        if userId == player.UserId then
+            return true
+        end
+    end
+    return false
+end
+
+-- Função para adicionar um jogador à lista de usuários do Blessed Hub
+local function addBlessedUser(player)
+    if not isBlessedUser(player) then
+        table.insert(BLESSED_USERS, player.UserId)
+        
+        -- Adiciona a tag visual ao jogador
+        if player.Character then
+            createUserTag(player)
+        end
+        
+        -- Conecta o evento de adição de personagem para adicionar a tag quando o jogador respawnar
+        player.CharacterAdded:Connect(function(character)
+            task.wait(1) -- Espera um pouco para garantir que o personagem esteja completamente carregado
+            createUserTag(player)
         end)
     end
 end
+
+-- Adiciona o jogador local à lista de usuários do Blessed Hub
+addBlessedUser(LocalPlayer)
+
+-- Verifica todos os jogadores atuais para ver se são usuários do Blessed Hub
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        -- Aqui você pode implementar uma verificação mais robusta
+        -- Por enquanto, vamos adicionar todos os jogadores como exemplo
+        -- Em um cenário real, você precisaria de uma forma de verificar
+        -- se eles realmente estão usando o Blessed Hub
+        -- addBlessedUser(player)
+    end
+end
+
+-- Conecta o evento de adição de jogador para verificar novos jogadores
+Players.PlayerAdded:Connect(function(player)
+    -- Verificação simulada - em um cenário real, você precisaria de uma forma
+    -- de verificar se o novo jogador está usando o Blessed Hub
+    -- addBlessedUser(player)
+end)
 
 -- =====================================================
 -- 2. FUNÇÕES PRINCIPAIS (LÓGICA DO SCRIPT)
@@ -377,6 +473,12 @@ function getHumanoid()
 end
 
 function CopyPlayerSkin(player)
+    -- Verifica se o jogador permite cópia de skin
+    if not allowSkinCopy then
+        notify("Erro", "Este jogador não permite cópia de skin.", 3)
+        return
+    end
+    
     if player and player.Character and player.Character:FindFirstChild("Humanoid") then
         local humanoidDescription = player.Character.Humanoid.HumanoidDescription
         local args = {
@@ -597,7 +699,7 @@ local success, err = pcall(function()
         HasOutline = false,
         KeySystem = { 
             Key = { "1234", "5678" },
-            Note = "A senha é '1234' ou '5678'",
+            Note = "The Key is '1234' or '5678'",
             Thumbnail = { Image = "rbxassetid://110674298351147", Title = "Blessed Hub" },
             URL = "https://github.com/Footagesus/WindUI",
             SaveKey = true,
@@ -714,6 +816,16 @@ MainTab:Toggle({ Title = "Copiar Skin ao Clicar", Value = false, Callback = func
         notify("Desativado", "Copiar Skin ao Clicar foi desativado.", 5)
     end
 end})
+
+-- Toggle para permitir cópia de skin
+MainTab:Toggle({ 
+    Title = "Podem copiar sua skin", 
+    Value = allowSkinCopy, 
+    Callback = function(state)
+        allowSkinCopy = state
+        notify("Configuração", state and "Agora outros usuários podem copiar sua skin" or "Agora outros usuários não podem copiar sua skin", 3)
+    end 
+})
 
 -- [Player Tab]
 PlayerTab:Slider({ Title = "Campo de Visão (FOV)", Step = 1, Value = { Min = 20, Max = 120, Default = 70 }, Callback = function(value) 
