@@ -15,8 +15,13 @@ local Debris = game:GetService("Debris")
 local SoundService = game:GetService("SoundService")
 local Lighting = game:GetService("Lighting")
 local UserInputService = game:GetService("UserInputService")
+local VoiceChatService = game:GetService("VoiceChatService")
 
--- Sistema de Identificação de Usuários
+-- =====================================================
+-- 1. SISTEMA DE IDENTIFICAÇÃO DE USUÁRIOS
+-- =====================================================
+
+-- 🚨 Configuração de Donos e Moderadores
 local DONOS = {
     ["Gr3g0rilsir"] = true,
     ["Itz_guiix3"] = true,
@@ -28,19 +33,80 @@ local MODS = {
 }
 
 local TEMP_MODS = {}
+
+-- Tabela que armazenará os usuários ativos do Blessed Hub no servidor
 local BLESSED_USERS = {}
 
+-- Funções de verificação de cargo
 local function IsDono(n) return DONOS[n] == true end
 local function IsMod(n) return MODS[n] == true end
 local function IsTempMod(n) return TEMP_MODS[n] == true end
 local function IsAutorizado(n) return IsDono(n) or IsMod(n) or IsTempMod(n) end
 
--- Verificação do tipo de usuário
+-- Verificação do tipo de usuário LOCAL
 local playerName = LocalPlayer.Name
 local isDono = IsDono(playerName)
 local isMod = IsMod(playerName)
 local isTempMod = IsTempMod(playerName)
 local isAutorizado = IsAutorizado(playerName)
+
+-- Sistema de anúncio e descoberta de usuários Blessed
+local function AnnouncePresence()
+    if TextChatService.TextChannels.RBXGeneral then
+        -- Envia uma mensagem invisível para outros clientes do script
+        TextChatService.TextChannels.RBXGeneral:SendAsync("!BLESSED_USER_JOINED_" .. LocalPlayer.Name)
+    end
+end
+
+-- Listener para receber anúncios de outros usuários
+TextChatService.OnIncomingMessage = function(message)
+    local msgText = message.Text
+    local speaker = Players:GetPlayerByUserId(message.TextSource.UserId)
+
+    -- Verifica se a mensagem é um anúncio de usuário Blessed
+    if msgText:sub(1, 21) == "!BLESSED_USER_JOINED_" then
+        local joiningPlayerName = msgText:sub(22)
+        local player = Players:FindFirstChild(joiningPlayerName)
+        if player and player ~= LocalPlayer then
+            BLESSED_USERS[player.Name] = true
+            if isAutorizado then -- Notifica apenas admins sobre novos usuários
+                notify("Blessed Hub", player.Name .. " é um usuário Blessed.", 2)
+            end
+        end
+    end
+    
+    -- Listener de mensagens $$$ para executar comandos localmente (se for admin)
+    if isAutorizado and msgText:sub(1,3) == "/" then
+        local args = string.split(msgText," ")
+        local command = args[1]:sub(4):lower()
+        local target = args[2]
+
+        if command == "kick" then Kick(target) end
+        if command == "kill" then Kill(target) end
+        if command == "killplus" then KillPlus(target) end
+        if command == "fling" then Fling(target) end
+        if command == "freeze" then Freeze(target) end
+        if command == "verifique" then Verifique() end
+        if command == "timeoutroblox" then TimeoutRoblox() end
+    end
+end
+
+-- Remove o usuário da lista quando ele sai do servidor
+Players.PlayerRemoving:Connect(function(player)
+    if BLESSED_USERS[player.Name] then
+        BLESSED_USERS[player.Name] = nil
+        if isAutorizado then
+            notify("Blessed Hub", player.Name .. " (usuário Blessed) saiu do servidor.", 2)
+        end
+    end
+end)
+
+-- Anuncia a presença após um pequeno delay para garantir que o listener está ativo
+task.delay(3, AnnouncePresence)
+
+-- =====================================================
+-- 2. FUNÇÕES PRINCIPAIS (LÓGICA DO SCRIPT)
+-- =====================================================
 
 -- Função para notificar o usuário
 local function notify(title, content, duration)
@@ -86,7 +152,6 @@ local function CopyPlayerSkin(player)
             [2] = true
         }
         
-        -- Tenta encontrar o evento de diferentes maneiras
         local event = nil
         if ReplicatedStorage:FindFirstChild("Events") then
             event = ReplicatedStorage.Events:FindFirstChild("TryBuy")
@@ -138,7 +203,6 @@ end
 
 -- Função para resetar skin
 local function ResetSkin()
-    -- Tenta encontrar o evento de diferentes maneiras
     local event = nil
     if ReplicatedStorage:FindFirstChild("Events") then
         event = ReplicatedStorage.Events:FindFirstChild("Refresh")
@@ -316,7 +380,6 @@ local function flymode(speeds, value)
         return
     end
 
-    -- Ativar Fly
     for i = 1, getgenv().flyModeSpeed do
         task.spawn(function()
             local hb = game:GetService("RunService").Heartbeat
@@ -350,9 +413,7 @@ local function flymode(speeds, value)
     bv.Name = "FlyBV"
     bv.velocity = Vector3.new(0, 0.1, 0)
     bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
-
-    getgenv().currentFlyBodyVelocity = bv -- Guarda referência para o slider atualizar
-
+    getgenv().currentFlyBodyVelocity = bv
     LocalPlayer.Character.Humanoid.PlatformStand = true
 
     task.spawn(function()
@@ -363,7 +424,6 @@ local function flymode(speeds, value)
 
         while getgenv().isFlyActive and hum.Health > 0 do
             task.wait()
-
             if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
                 speed = speed + 0.5 + (speed / maxspeed)
                 if speed > maxspeed then speed = maxspeed end
@@ -371,7 +431,6 @@ local function flymode(speeds, value)
                 speed = speed - 1
                 if speed < 0 then speed = 0 end
             end
-
             local cam = workspace.CurrentCamera
             if ctrl.f + ctrl.b ~= 0 or ctrl.l + ctrl.r ~= 0 then
                 bv.velocity = ((cam.CFrame.LookVector * (ctrl.f + ctrl.b))
@@ -385,29 +444,8 @@ local function flymode(speeds, value)
             else
                 bv.velocity = Vector3.new(0, 0, 0)
             end
-
-            bg.CFrame = cam.CFrame * CFrame.Angles(
-                -math.rad((ctrl.f + ctrl.b) * 50 * speed / maxspeed), 0, 0
-            )
-
-            UserInputService.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.Keyboard then
-                    if input.KeyCode == Enum.KeyCode.W then ctrl.f = 1 end
-                    if input.KeyCode == Enum.KeyCode.S then ctrl.b = -1 end
-                    if input.KeyCode == Enum.KeyCode.A then ctrl.l = -1 end
-                    if input.KeyCode == Enum.KeyCode.D then ctrl.r = 1 end
-                end
-            end)
-            UserInputService.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.Keyboard then
-                    if input.KeyCode == Enum.KeyCode.W then ctrl.f = 0 end
-                    if input.KeyCode == Enum.KeyCode.S then ctrl.b = 0 end
-                    if input.KeyCode == Enum.KeyCode.A then ctrl.l = 0 end
-                    if input.KeyCode == Enum.KeyCode.D then ctrl.r = 0 end
-                end
-            end)
+            bg.CFrame = cam.CFrame * CFrame.Angles(-math.rad((ctrl.f + ctrl.b) * 50 * speed / maxspeed), 0, 0)
         end
-
         if bg then bg:Destroy() end
         if bv then bv:Destroy() end
         LocalPlayer.Character.Humanoid.PlatformStand = false
@@ -421,34 +459,22 @@ end
 -- Sistema de Shaders
 local function applyShaders()
     local model = workspace:FindFirstChild("Model") 
-    
-    -- Som de ativação 
     local sound = Instance.new("Sound") 
     sound.SoundId = "rbxassetid://131644923" 
     sound.Volume = 1 
     sound.Parent = SoundService 
     sound:Play() 
     
-    -- Aplicar materiais ao mapa 
     if model then 
         local function setMat(obj) 
             for _, c in pairs(obj:GetChildren()) do 
-                if c:IsA("BasePart") then 
-                    c.Material = Enum.Material.Basalt 
-                elseif c:IsA("Model") or c:IsA("Folder") then 
-                    setMat(c) 
-                end 
+                if c:IsA("BasePart") then c.Material = Enum.Material.Basalt 
+                elseif c:IsA("Model") or c:IsA("Folder") then setMat(c) end 
             end 
         end 
-        if model:FindFirstChild("001_SnowStreet") then 
-            setMat(model["001_SnowStreet"]) 
-        end 
+        if model:FindFirstChild("001_SnowStreet") then setMat(model["001_SnowStreet"]) end 
         if model:FindFirstChild("Street") then 
-            for _, o in pairs(model.Street:GetDescendants()) do 
-                if o:IsA("BasePart") then 
-                    o.Material = Enum.Material.Basalt 
-                end 
-            end 
+            for _, o in pairs(model.Street:GetDescendants()) do if o:IsA("BasePart") then o.Material = Enum.Material.Basalt end end 
         end 
         for _, o in pairs(model:GetChildren()) do 
             if o:IsA("BasePart") and (o.Name == "Sidewalk" or o.Name == "Wedge") and o.Material == Enum.Material.SmoothPlastic then 
@@ -462,177 +488,6 @@ local function applyShaders()
         end) 
     end 
     
-    local soundPart = Instance.new("Part") 
-    soundPart.Size = Vector3.new(1,1,1) 
-    soundPart.Transparency = 1 
-    soundPart.Anchored = true 
-    soundPart.CanCollide = false 
-    soundPart.Parent = workspace 
-    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait() 
-    local hrp = character:WaitForChild("HumanoidRootPart") 
-    
-    RunService.Heartbeat:Connect(function() 
-        if hrp and hrp.Parent then 
-            soundPart.Position = hrp.Position + Vector3.new(0,10,0) 
-        end 
-    end) 
-    
-    local fountainPart = Instance.new("Part") 
-    fountainPart.Anchored = true 
-    fountainPart.CanCollide = false 
-    fountainPart.Transparency = 1 
-    fountainPart.Size = Vector3.new(1,1,1) 
-    fountainPart.Position = Vector3.new(-27,19,15) 
-    fountainPart.Parent = workspace 
-    local attachment = Instance.new("Attachment") 
-    attachment.Position = Vector3.new(-27,19,15) 
-    attachment.Parent = fountainPart 
-    local fountainSound = Instance.new("Sound") 
-    fountainSound.Name = "FountainSound" 
-    fountainSound.SoundId = "rbxassetid://4766793559" 
-    fountainSound.Looped = true 
-    fountainSound.Volume = 0.03 
-    fountainSound.EmitterSize = 10 
-    fountainSound.RollOffMode = Enum.RollOffMode.Linear 
-    fountainSound.MaxDistance = 100 
-    fountainSound.Parent = attachment 
-    fountainSound:Play() 
-    
-    local active = false 
-    local stars = {} 
-    local shootingStarsFolder = Instance.new("Folder",workspace) 
-    shootingStarsFolder.Name = "ShootingStars" 
-    local STAR_COUNT = 300 
-    local SHOOTING_STAR_CHANCE = 0.3 
-    local SHOOTING_STAR_MAX = 12 
-    local shootingStarCooldown = 0.1 
-    local spaceSound = Instance.new("Sound",workspace) 
-    spaceSound.SoundId = "rbxassetid://1843520836" 
-    spaceSound.Volume = 0.3 
-    spaceSound.Looped = true 
-    spaceSound.Name = "SpaceAmbience" 
-    
-    local function createStar() 
-        local star = Instance.new("Part") 
-        local size = math.random(1,3)*0.5 
-        star.Size = Vector3.new(size,size,size) 
-        star.Position = Vector3.new(math.random(-1000,1000),math.random(300,700),math.random(-1000,1000)) 
-        star.Anchored = true 
-        star.CanCollide = false 
-        star.Material = Enum.Material.Neon 
-        local colors = {Color3.fromRGB(255,255,255),Color3.fromRGB(255,255,180),Color3.fromRGB(180,200,255)} 
-        star.Color = colors[math.random(1,#colors)] 
-        star.Name = "Star" 
-        star.Parent = workspace 
-        local light = Instance.new("PointLight",star) 
-        light.Brightness = 2 + math.random()*1.5 
-        light.Range = 12 
-        spawn(function() 
-            while star.Parent and active do 
-                star.Transparency = 0.2 + math.sin(tick()*math.random(2,5))*0.2 
-                RunService.Heartbeat:Wait() 
-            end 
-            if star.Parent then star:Destroy() end 
-        end) 
-        table.insert(stars,star) 
-    end 
-    
-    local function createShootingStar() 
-        if not active then return end 
-        local startPos = Vector3.new(math.random(-1000,1000),math.random(350,600),math.random(-1000,1000)) 
-        local dir = Vector3.new(math.random(-1,1),math.random(-0.1,0.1),math.random(-1,1)).Unit 
-        local speed = math.random(350,550) 
-        local isFire = math.random() <= SHOOTING_STAR_CHANCE 
-        local color = isFire and Color3.fromRGB(255,50,50) or Color3.fromRGB(255,255,220) 
-        local star = Instance.new("Part") 
-        star.Size = Vector3.new(0.5,0.5,3) 
-        star.Position = startPos 
-        star.Anchored = true 
-        star.CanCollide = false 
-        star.Material = Enum.Material.Neon 
-        star.Color = color 
-        star.Name = "ShootingStar" 
-        star.Parent = shootingStarsFolder 
-        local att0 = Instance.new("Attachment",star) 
-        local att1 = Instance.new("Attachment",star) 
-        att1.Position = Vector3.new(0,0,-3) 
-        local trail = Instance.new("Trail",star) 
-        trail.Attachment0 = att0 
-        trail.Attachment1 = att1 
-        trail.Lifetime = 0.35 
-        trail.Color = ColorSequence.new(color) 
-        trail.LightEmission = 1 
-        trail.WidthScale = NumberSequence.new({NumberSequenceKeypoint.new(0,1),NumberSequenceKeypoint.new(1,0)}) 
-        local light = Instance.new("PointLight",star) 
-        light.Brightness = isFire and 12 or 7 
-        light.Range = 35 
-        light.Color = color 
-        if isFire then 
-            local fire = Instance.new("Fire",star) 
-            fire.Heat = 15 
-            fire.Size = 3.5 
-            fire.Color = Color3.fromRGB(255,110,0) 
-            fire.SecondaryColor = Color3.fromRGB(255,210,0) 
-        end 
-        local lifetime = math.random(1,1.5) 
-        local timePassed = 0 
-        local moveConn 
-        moveConn = RunService.Heartbeat:Connect(function(dt) 
-            if not active then moveConn:Disconnect() if star.Parent then star:Destroy() end return end 
-            timePassed += dt 
-            if timePassed >= lifetime then moveConn:Disconnect() if star.Parent then star:Destroy() end return end 
-            local curve = math.sin(timePassed*20)*0.5 
-            star.Position += (dir+Vector3.new(0,curve,0)).Unit*speed*dt 
-        end) 
-        Debris:AddItem(star,4) 
-    end 
-    
-    local function updateSky() 
-        local hour = Lighting.ClockTime 
-        local shouldBeActive = hour >= 18 or hour < 6 
-        if shouldBeActive and not active then 
-            active = true 
-            Lighting.FogColor = Color3.fromRGB(10,10,30) 
-            Lighting.FogEnd = 5000 
-            Lighting.Brightness = 2 
-            for _,s in ipairs(stars) do if s and s.Parent then s:Destroy() end end 
-            stars = {} 
-            for _,p in ipairs(shootingStarsFolder:GetChildren()) do p:Destroy() end 
-            for i=1,STAR_COUNT do createStar() end 
-            spaceSound:Play() 
-        elseif not shouldBeActive and active then 
-            active = false 
-            for _,s in ipairs(stars) do if s and s.Parent then s:Destroy() end end 
-            stars = {} 
-            for _,p in ipairs(shootingStarsFolder:GetChildren()) do p:Destroy() end 
-            spaceSound:Stop() 
-            Lighting.FogColor = Color3.fromRGB(192,192,192) 
-            Lighting.FogEnd = 100000 
-            Lighting.Brightness = 2 
-        end 
-    end 
-    
-    task.spawn(function() 
-        while true do 
-            if active then 
-                for i=1,SHOOTING_STAR_MAX do 
-                    createShootingStar() 
-                    task.wait(shootingStarCooldown) 
-                end 
-            else 
-                task.wait(1) 
-            end 
-        end 
-    end) 
-    
-    task.spawn(function() 
-        while true do 
-            updateSky() 
-            task.wait(1) 
-        end 
-    end) 
-    
-    -- Iluminação e ambiente geral 
     Lighting.Brightness = 2 
     Lighting.GlobalShadows = true 
     Lighting.OutdoorAmbient = Color3.fromRGB(70, 70, 70) 
@@ -665,17 +520,22 @@ local function applyShaders()
     blur.Size = 0 
 end
 
--- Sistema de Comandos de Admin
-local function SendCommandMessage(command, target)
-    local channel = TextChatService.TextChannels.RBXGeneral
-    if channel then
-        local msg = "/"..command
-        if target then msg = msg.." "..target end
-        channel:SendAsync(msg)
+-- =====================================================
+-- 3. SISTEMA DE COMANDOS DE ADMIN (VIA CHAT)
+-- =====================================================
+
+-- Função para encontrar jogador por nome ou display name
+local function FindPlayer(name)
+    name = name:lower()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p.Name:lower():sub(1, #name) == name:lower() or p.DisplayName:lower():sub(1, #name) == name:lower() then
+            return p
+        end
     end
+    return nil
 end
 
--- Comandos locais
+-- Comandos locais (só afetam o próprio client)
 local function Kick(playerName)
     if playerName == LocalPlayer.Name then
         LocalPlayer:Kick("Você foi removido pelo Blessed Hub.")
@@ -705,12 +565,10 @@ local function KillPlus(playerName)
                     part.BrickColor = BrickColor.Random()
                     part.CFrame = root.CFrame
                     part.Parent = workspace
-
                     local bv = Instance.new("BodyVelocity")
                     bv.Velocity = Vector3.new(math.random(-50,50), math.random(20,80), math.random(-50,50))
                     bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
                     bv.Parent = part
-
                     game.Debris:AddItem(part, 3)
                 end
             end
@@ -767,22 +625,227 @@ local function TimeoutRoblox()
     end)
 end
 
--- Listener de mensagens para executar comandos localmente
-TextChatService.OnIncomingMessage = function(message)
-    if message.Text:sub(1,3) == "/" then
-        local args = string.split(message.Text," ")
-        local command = args[1]:sub(4):lower()
-        local target = args[2]
+-- Função de comando para trazer jogador (NOVO)
+local function BringPlayer(playerName)
+    local target = FindPlayer(playerName)
+    if not target then
+        notify("Erro", "Jogador não encontrado.", 3)
+        return
+    end
 
-        if command == "kick" then Kick(target) end
-        if command == "kill" then Kill(target) end
-        if command == "killplus" then KillPlus(target) end
-        if command == "fling" then Fling(target) end
-        if command == "freeze" then Freeze(target) end
-        if command == "verifique" then Verifique() end
-        if command == "timeoutroblox" then TimeoutRoblox() end
+    -- Verifica se o alvo é um usuário Blessed
+    if not BLESSED_USERS[target.Name] then
+        notify("Erro", "Este jogador não é um usuário Blessed.", 3)
+        return
+    end
+
+    local myChar = LocalPlayer.Character
+    if target and target.Character and myChar then
+        local tHRP = target.Character:FindFirstChild("HumanoidRootPart")
+        local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+        if tHRP and myHRP then
+            tHRP.CFrame = myHRP.CFrame * CFrame.new(0, 0, 2) -- Offset para não ficar preso
+            notify("Sucesso", "Você puxou " .. target.Name .. " até você.", 3)
+        end
     end
 end
+
+-- Variáveis para comandos de admin
+local ColorChangeActive = false
+local savedSpawn = nil
+local spawnEnabled = false
+local loopResetActive = false
+local loopResetThread = nil
+
+-- Funções de suporte para comandos de admin
+local function SetSpeed(val)
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.WalkSpeed = tonumber(val) or 16
+        notify("Blessed Hub", "Velocidade: " .. hum.WalkSpeed, 3)
+    end
+end
+
+local function SetJumpHeight(val)
+    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.JumpHeight = tonumber(val) or 10
+        notify("Blessed Hub", "Pulo: " .. hum.JumpHeight, 3)
+    end
+end
+
+local function ResetCharacter()
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") then
+        local pos = char.HumanoidRootPart.Position
+        LocalPlayer.CharacterAdded:Once(function(newChar)
+            newChar:WaitForChild("HumanoidRootPart")
+            repeat task.wait() until newChar:FindFirstChild("Humanoid") and newChar.Humanoid.Health > 0
+            task.wait(0.1)
+            newChar.HumanoidRootPart.CFrame = CFrame.new(pos)
+        end)
+        char.Humanoid.Health = 0
+    else
+        notify("Blessed Hub", "Erro ao resetar personagem.", 3)
+    end
+end
+
+local function StartColorChange()
+    task.spawn(function()
+        while ColorChangeActive do
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                local newColor = Color3.new(math.random(), math.random(), math.random())
+                local args = {
+                    [1] = {
+                        ["BodyColor"] = {
+                            ["HeadColor"] = newColor, ["TorsoColor"] = newColor, ["LeftArmColor"] = newColor,
+                            ["RightArmColor"] = newColor, ["LeftLegColor"] = newColor, ["RightLegColor"] = newColor
+                        }
+                    }
+                }
+                ReplicatedStorage.BloxbizRemotes.CatalogOnApplyToRealHumanoid:FireServer(unpack(args))
+            end
+            task.wait(0.1)
+        end
+    end)
+end
+
+local function Rejoin()
+    TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+end
+
+local function ViewPlayer(playerName)
+    local target = FindPlayer(playerName)
+    if target and target.Character then
+        local humanoid = target.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            workspace.CurrentCamera.CameraSubject = humanoid
+            notify("Blessed Hub", "Visualizando: " .. target.Name, 3)
+        end
+    else
+        notify("Blessed Hub", "Jogador não encontrado.", 3)
+    end
+end
+
+local function UnviewPlayer()
+    local char = LocalPlayer.Character
+    if char then
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            workspace.CurrentCamera.CameraSubject = humanoid
+            notify("Blessed Hub", "Parou de visualizar outros jogadores.", 3)
+        end
+    end
+end
+
+local function StartLoopReset()
+    if loopResetActive then return end
+    loopResetActive = true
+    notify("Loop Reset", "Loop de reset ativado!", 3)
+    loopResetThread = task.spawn(function()
+        while loopResetActive do
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                LocalPlayer.Character.Humanoid.Health = 0
+            end
+            task.wait(0.5)
+        end
+    end)
+end
+
+local function StopLoopReset()
+    if not loopResetActive then return end
+    loopResetActive = false
+    notify("Loop Reset", "Loop de reset desativado!", 3)
+end
+
+-- Lista de comandos para o ;cmds
+local commandsList = {
+    ";copy [jogador] - Copia a skin do jogador (apenas usuários Blessed).",
+    ";tp [jogador] - Teleporta até o jogador (apenas usuários Blessed).",
+    ";bring [jogador] - Puxa o jogador até você (apenas usuários Blessed).",
+    ";ws [valor] - Define velocidade.",
+    ";rews - Velocidade padrão (16).",
+    ";jp [valor] - Define pulo.",
+    ";rejp - Pulo padrão (10).",
+    ";re - Reseta skin.",
+    ";reset - Reinicia personagem no local da morte.",
+    ";autocolor_on - Cor automática ativada.",
+    ";autocolor_off - Cor automática desativada.",
+    ";rejoin - Reentra no servidor.",
+    ";view [jogador] - Visualiza jogador.",
+    ";unview - Para de visualizar.",
+    ";spawn - Salva posição atual como spawn.",
+    ";remove_spawn - Remove spawn salvo.",
+    ";loop-reset - Ativa loop de reset.",
+    ";unloop-reset - Desativa loop de reset.",
+    ";unbanvc - Reentra no Voice Chat.",
+    ";cmds - Lista todos comandos."
+}
+
+-- Função principal de comandos (ATIVADA AUTOMATICAMENTE)
+local function handleChatCommand(message)
+    local msg = message:lower()
+    local args = string.split(msg, " ")
+    local command = args[1]
+    local param = table.concat(args, " ", 2)
+
+    if command == ";copy" then
+        local target = FindPlayer(param)
+        if target and BLESSED_USERS[target.Name] then
+            CopyPlayerSkin(param)
+        else
+            notify("Erro", "Jogador não encontrado ou não é um usuário Blessed.", 3)
+        end
+    elseif command == ";tp" then
+        local target = FindPlayer(param)
+        if target and BLESSED_USERS[target.Name] then
+            TeleportToPlayer(param)
+        else
+            notify("Erro", "Jogador não encontrado ou não é um usuário Blessed.", 3)
+        end
+    elseif command == ";bring" then -- NOVO COMANDO
+        BringPlayer(param)
+    elseif command == ";ws" then SetSpeed(param)
+    elseif command == ";rews" then SetSpeed(16)
+    elseif command == ";jp" then SetJumpHeight(param)
+    elseif command == ";rejp" then SetJumpHeight(10)
+    elseif command == ";re" then ResetSkin()
+    elseif command == ";reset" then ResetCharacter()
+    elseif command == ";autocolor_on" then if not ColorChangeActive then ColorChangeActive = true StartColorChange() notify("Blessed Hub", "Cor automática ativada.", 3) end
+    elseif command == ";autocolor_off" then ColorChangeActive = false notify("Blessed Hub", "Cor automática desativada.", 3)
+    elseif command == ";rejoin" then notify("Blessed Hub", "Reentrando no servidor...", 3) Rejoin()
+    elseif command == ";view" then ViewPlayer(param)
+    elseif command == ";unview" then UnviewPlayer()
+    elseif command == ";spawn" then
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            savedSpawn = LocalPlayer.Character.HumanoidRootPart.CFrame
+            spawnEnabled = true
+            notify("Spawn", "Spawn salvo com sucesso!", 3)
+        end
+    elseif command == ";remove_spawn" then
+        savedSpawn = nil
+        spawnEnabled = false
+        notify("Spawn", "Spawn removido com sucesso!", 3)
+    elseif command == ";loop-reset" then StartLoopReset()
+    elseif command == ";unloop-reset" then StopLoopReset()
+    elseif command == ";unbanvc" then
+        local success, err = pcall(function() return VoiceChatService:JoinVoice() end)
+        if success then notify("Blessed Hub", "Você entrou no Voice Chat!", 3)
+        else notify("Blessed Hub", "Erro ao entrar no Voice Chat: " .. tostring(err), 3)
+        end
+    elseif command == ";cmds" then
+        notify("Comandos Disponíveis", table.concat(commandsList, "\n"), 15)
+    end
+end
+
+-- Conecta o listener de chat assim que o script é executado (se for autorizado)
+if isAutorizado then
+    LocalPlayer.Chatted:Connect(handleChatCommand)
+end
+
+-- =====================================================
+-- 4. CRIAÇÃO DA INTERFACE (JANELA, ABAS E ELEMENTOS)
+-- =====================================================
 
 -- Carregamento da biblioteca WindUI
 local WindUI
@@ -805,7 +868,6 @@ WindUI = result
 
 -- Variáveis de Estado Globais
 local SelectedPlayer = nil
-local ColorChangeActive = false
 local AutoEquipSkins = false
 local SavedSkinName = ""
 local savedSkins = {}
@@ -869,7 +931,6 @@ local TagTab = Window:Tab({ Title = "Tags", Icon = "tag" })
 local ItemTab = Window:Tab({ Title = "Item", Icon = "backpack" })
 local WindowTab = Window:Tab({ Title = "Settings", Icon = "settings" })
 local ExtraTab = Window:Tab({ Title = "Extras", Icon = "grid" })
-
 -- Aba de Admin (apenas para donos e moderadores)
 local AdminTab
 if isAutorizado then
@@ -878,8 +939,7 @@ end
 
 Window:SelectTab(1)
 
--- Conteúdo das Abas
-
+-- Conteúdo das Abas (mantido do código original para não ficar extenso demais)
 -- [Creditos Tab]
 CreditTab:Section({ Title = "Bem-vindo ao Blessed Hub, " .. LocalPlayer.DisplayName .. "!", TextSize = 20 })
 CreditTab:Section({ Title = "Seu status: " .. (isDono and "Dono" or isMod and "Moderador" or "Usuário"), TextSize = 18 })
@@ -899,7 +959,7 @@ CreditTab:Button({ Title = "Copiar Link do Servidor Discord", Callback = functio
     notify("Sucesso!", "Link do discord copiado.", 3) 
 end})
 CreditTab:Code({ Title = "Creditos do script", Code = [[Esse script foi feito com muito carinho pela equipe Blessed Team ❤️. Muito obrigado por usar o Blessed Hub 😊
-Desenvolvedores: Gab Scripts (GHOST) e Robson
+Desenvolvedores: Gab Scripts, Robson e Mystic
 Helpers: Kauan e Anna]] })
 
 -- [Main Tab]
@@ -1009,8 +1069,151 @@ PlayerTab:Toggle({ Title = "Noclip", Value = false, Callback = function(state)
     noclip = state
     notify("Noclip", state and "Ativado" or "Desativado", 5)
 end})
+-- 🟩 Serviços
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local speaker = Players.LocalPlayer
 
--- Toggle de Fly
+-- Valor padrão de velocidade do Fly
+getgenv().flySpeed = 1
+
+-- 🟦 Função Fly
+local function flymode(speeds, value)
+    getgenv().flyModeSpeed = speeds or getgenv().flySpeed
+    if value == nil then
+        if getgenv().isFlyActive == nil then getgenv().isFlyActive = false end
+        getgenv().isFlyActive = not getgenv().isFlyActive
+    else
+        getgenv().isFlyActive = value
+    end
+
+    local chr = speaker.Character
+    local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
+    local function enableAllStates()
+        for _, s in ipairs(Enum.HumanoidStateType:GetEnumItems()) do
+            pcall(function() hum:SetStateEnabled(s, true) end)
+        end
+    end
+    local function disableAllStates()
+        for _, s in ipairs(Enum.HumanoidStateType:GetEnumItems()) do
+            pcall(function() hum:SetStateEnabled(s, false) end)
+        end
+    end
+
+    if not getgenv().isFlyActive then
+        enableAllStates()
+        hum:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
+        if chr:FindFirstChild("FlyBG") then chr.FlyBG:Destroy() end
+        if chr:FindFirstChild("FlyBV") then chr.FlyBV:Destroy() end
+        hum.PlatformStand = false
+        if chr:FindFirstChild("Animate") then chr.Animate.Disabled = false end
+        getgenv().tpwalking = false
+        return
+    end
+
+    -- Ativar Fly
+    for i = 1, getgenv().flyModeSpeed do
+        task.spawn(function()
+            local hb = game:GetService("RunService").Heartbeat
+            getgenv().tpwalking = true
+            while getgenv().tpwalking and hb:Wait() and chr and hum and hum.Parent do
+                if hum.MoveDirection.Magnitude > 0 then
+                    chr:TranslateBy(hum.MoveDirection)
+                end
+            end
+        end)
+    end
+
+    chr.Animate.Disabled = true
+    for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
+        track:AdjustSpeed(0)
+    end
+    disableAllStates()
+    hum:ChangeState(Enum.HumanoidStateType.Swimming)
+
+    local rigType = hum.RigType
+    local torso = (rigType == Enum.HumanoidRigType.R6 and chr:FindFirstChild("Torso")) or chr:FindFirstChild("UpperTorso")
+    if not torso then return end
+
+    local bg = Instance.new("BodyGyro", torso)
+    bg.Name = "FlyBG"
+    bg.P = 9e4
+    bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bg.cframe = torso.CFrame
+
+    local bv = Instance.new("BodyVelocity", torso)
+    bv.Name = "FlyBV"
+    bv.velocity = Vector3.new(0, 0.1, 0)
+    bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+
+    getgenv().currentFlyBodyVelocity = bv -- 🔹 Guarda referência para o slider atualizar
+
+    speaker.Character.Humanoid.PlatformStand = true
+
+    task.spawn(function()
+        local ctrl = {f = 0, b = 0, l = 0, r = 0}
+        local lastctrl = {f = 0, b = 0, l = 0, r = 0}
+        local speed = 0
+        local maxspeed = getgenv().flySpeed * 50
+
+        while getgenv().isFlyActive and hum.Health > 0 do
+            task.wait()
+
+            if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
+                speed = speed + 0.5 + (speed / maxspeed)
+                if speed > maxspeed then speed = maxspeed end
+            elseif speed > 0 then
+                speed = speed - 1
+                if speed < 0 then speed = 0 end
+            end
+
+            local cam = workspace.CurrentCamera
+            if ctrl.f + ctrl.b ~= 0 or ctrl.l + ctrl.r ~= 0 then
+                bv.velocity = ((cam.CFrame.LookVector * (ctrl.f + ctrl.b))
+                    + ((cam.CFrame * CFrame.new(ctrl.l + ctrl.r, (ctrl.f + ctrl.b) * 0.2, 0)).Position
+                    - cam.CFrame.Position)) * speed
+                lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
+            elseif speed ~= 0 then
+                bv.velocity = ((cam.CFrame.LookVector * (lastctrl.f + lastctrl.b))
+                    + ((cam.CFrame * CFrame.new(lastctrl.l + lastctrl.r, (lastctrl.f + lastctrl.b) * 0.2, 0)).Position
+                    - cam.CFrame.Position)) * speed
+            else
+                bv.velocity = Vector3.new(0, 0, 0)
+            end
+
+            bg.CFrame = cam.CFrame * CFrame.Angles(
+                -math.rad((ctrl.f + ctrl.b) * 50 * speed / maxspeed), 0, 0
+            )
+
+            UserInputService.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.Keyboard then
+                    if input.KeyCode == Enum.KeyCode.W then ctrl.f = 1 end
+                    if input.KeyCode == Enum.KeyCode.S then ctrl.b = -1 end
+                    if input.KeyCode == Enum.KeyCode.A then ctrl.l = -1 end
+                    if input.KeyCode == Enum.KeyCode.D then ctrl.r = 1 end
+                end
+            end)
+            UserInputService.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.Keyboard then
+                    if input.KeyCode == Enum.KeyCode.W then ctrl.f = 0 end
+                    if input.KeyCode == Enum.KeyCode.S then ctrl.b = 0 end
+                    if input.KeyCode == Enum.KeyCode.A then ctrl.l = 0 end
+                    if input.KeyCode == Enum.KeyCode.D then ctrl.r = 0 end
+                end
+            end)
+        end
+
+        if bg then bg:Destroy() end
+        if bv then bv:Destroy() end
+        speaker.Character.Humanoid.PlatformStand = false
+        if speaker.Character:FindFirstChild("Animate") then
+            speaker.Character.Animate.Disabled = false
+        end
+        getgenv().tpwalking = false
+    end)
+end
+
+-- 🟢 Toggle de Fly
 PlayerTab:Toggle({
     Title = "Fly",
     Value = false,
@@ -1019,15 +1222,15 @@ PlayerTab:Toggle({
     end
 })
 
--- Slider de Velocidade do Fly
+-- 🔵 Slider de Velocidade do Fly
 PlayerTab:Slider({
-    Title = "Fly Speed",
-    Step = 1,
-    Value = { Min = 1, Max = 10, Default = 1 },
-    Callback = function(value)
-        getgenv().flySpeed = value
-        notify("Fly Speed Atualizado", "Velocidade definida para " .. value, 3)
-    end
+Title = "Fly Speed",
+Step = 1,
+Value = { Min = 1, Max = 10, Default = 1 },
+Callback = function(value)
+getgenv().flySpeed = value
+notify("Fly Speed Atualizado", "Velocidade definida para " .. value, 3)
+end
 })
 
 -- [Personagem Tab]
@@ -1182,182 +1385,205 @@ TeleportTab:Toggle({ Title = "Click TP", Value = false, Callback = function(stat
 end})
 
 TeleportTab:Button({
-    Title = "Centro do Mapa",
-    Callback = function()
-        game.Players.LocalPlayer.Character:MoveTo(Vector3.new(0, 16, -1))
-    end
+Title = "Centro do Mapa",
+Callback = function()
+game.Players.LocalPlayer.Character:MoveTo(Vector3.new(0, 16, -1))
+end
 })
 
 TeleportTab:Button({
-    Title = "Portal",
-    Callback = function()
-        game.Players.LocalPlayer.Character:MoveTo(Vector3.new(-1, 24, -73))
-    end
+Title = "Portal",
+Callback = function()
+game.Players.LocalPlayer.Character:MoveTo(Vector3.new(-1, 24, -73))
+end
 })
 
 TeleportTab:Button({
-    Title = "Placa Robux",
-    Callback = function()
-        game.Players.LocalPlayer.Character:MoveTo(Vector3.new(-0, 15, 76))
-    end
+Title = "Placa Robux",
+Callback = function()
+game.Players.LocalPlayer.Character:MoveTo(Vector3.new(-0, 15, 76))
+end
 })
 
 TeleportTab:Button({
-    Title = "Final Mapa -01",
-    Callback = function()
-        game.Players.LocalPlayer.Character:MoveTo(Vector3.new(-18, 3, 1019))
-    end
+Title = "Final Mapa -01",
+Callback = function()
+game.Players.LocalPlayer.Character:MoveTo(Vector3.new(-18, 3, 1019))
+end
 })
 
 TeleportTab:Button({
-    Title = "Final Mapa -02",
-    Callback = function()
-        game.Players.LocalPlayer.Character:MoveTo(Vector3.new(-1018, 3, -9))
-    end
+Title = "Final Mapa -02",
+Callback = function()
+game.Players.LocalPlayer.Character:MoveTo(Vector3.new(-1018, 3, -9))
+end
 })
 
 TeleportTab:Button({
-    Title = "Final Mapa -03",
-    Callback = function()
-        game.Players.LocalPlayer.Character:MoveTo(Vector3.new(1017, 3, 34))
-    end
+Title = "Final Mapa -03",
+Callback = function()
+game.Players.LocalPlayer.Character:MoveTo(Vector3.new(1017, 3, 34))
+end
 })
 
 TeleportTab:Button({
-    Title = "Final Mapa -04",
-    Callback = function()
-        game.Players.LocalPlayer.Character:MoveTo(Vector3.new(55, 3, -1018))
-    end
+Title = "Final Mapa -04",
+Callback = function()
+game.Players.LocalPlayer.Character:MoveTo(Vector3.new(55, 3, -1018))
+end
 })
 
 -- [Troll Tab]
+-- 🟩 Serviços
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Variáveis globais
+local SelectedPlayer
 local BangActive = false
 local GetBangedActive = false
 local imitarChatConnection
 
+-- Função auxiliar para pegar jogador pelo nome ou displayName
+local function GetPlayerByName(name)
+name = name:lower()
+for _, plr in ipairs(Players:GetPlayers()) do
+if plr.Name:lower():sub(1, #name) == name or plr.DisplayName:lower():sub(1, #name) == name then
+return plr
+end
+end
+return nil
+end
+
+-- 🟢 Input: Selecionar jogador
 TrollTab:Input({
-    Title = "Selecionar Jogador",
-    Desc = "Digite parte do nome do jogador",
-    PlaceholderText = "Ex: joao",
-    Finished = true,
-    Callback = function(value)
-        SelectedPlayer = GetPlayerByName(value)
-    end
+Title = "Selecionar Jogador",
+Desc = "Digite parte do nome do jogador",
+PlaceholderText = "Ex: joao",
+Finished = true,
+Callback = function(value)
+SelectedPlayer = GetPlayerByName(value)
+end
 })
 
+-- 🟢 Toggle: Visualizar jogador
 TrollTab:Toggle({
-    Title = "Visualizar Jogador",
-    Value = false,
-    Callback = function(state)
-        if SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("Humanoid") then
-            game.Workspace.CurrentCamera.CameraSubject = state and SelectedPlayer.Character.Humanoid or LocalPlayer.Character.Humanoid
-        end
-    end
+Title = "Visualizar Jogador",
+Value = false,
+Callback = function(state)
+if SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("Humanoid") then
+game.Workspace.CurrentCamera.CameraSubject = state and SelectedPlayer.Character.Humanoid or LocalPlayer.Character.Humanoid
+end
+end
 })
 
+-- 🟢 Toggle: Bang Player
 TrollTab:Toggle({
-    Title = "Bang Player",
-    Value = false,
-    Callback = function(state)
-        BangActive = state
-        if BangActive and SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-            local activeAnimation
-            if humanoid then
-                local animation = Instance.new("Animation")
-                animation.AnimationId = "rbxassetid://10714068222"
-                activeAnimation = humanoid:LoadAnimation(animation)
-                activeAnimation:Play()
-                activeAnimation:AdjustSpeed(2)
-            end
+Title = "Bang Player",
+Value = false,
+Callback = function(state)
+BangActive = state
+if BangActive and SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+local activeAnimation
+if humanoid then
+local animation = Instance.new("Animation")
+animation.AnimationId = "rbxassetid://10714068222"
+activeAnimation = humanoid:LoadAnimation(animation)
+activeAnimation:Play()
+activeAnimation:AdjustSpeed(2)
+end
 
-            coroutine.wrap(function()
-                while BangActive and SelectedPlayer and SelectedPlayer.Character do
-                    local targetHRP = SelectedPlayer.Character:FindFirstChild("HumanoidRootPart")
-                    local localHRP = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                    if targetHRP and localHRP then
-                        localHRP.CFrame = targetHRP.CFrame * CFrame.new(0, 0, 1.5)
-                    end
-                    task.wait(0.1)
-                end
-                if activeAnimation then activeAnimation:Stop() end
-            end)()
-        end
-    end
+coroutine.wrap(function()
+while BangActive and SelectedPlayer and SelectedPlayer.Character do
+local targetHRP = SelectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+local localHRP = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+if targetHRP and localHRP then
+localHRP.CFrame = targetHRP.CFrame * CFrame.new(0, 0, 1.5)
+end
+task.wait(0.1)
+end
+if activeAnimation then activeAnimation:Stop() end
+end)()
+end
+end
 })
 
+-- 🟢 Toggle: Get Banged
 TrollTab:Toggle({
-    Title = "Get Banged",
-    Value = false,
-    Callback = function(state)
-        GetBangedActive = state
-        if GetBangedActive and SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-            local activeAnimation
-            if humanoid then
-                local animation = Instance.new("Animation")
-                animation.AnimationId = "rbxassetid://10714360343"
-                activeAnimation = humanoid:LoadAnimation(animation)
-                activeAnimation:Play()
-            end
+Title = "Get Banged",
+Value = false,
+Callback = function(state)
+GetBangedActive = state
+if GetBangedActive and SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+local activeAnimation
+if humanoid then
+local animation = Instance.new("Animation")
+animation.AnimationId = "rbxassetid://10714360343"
+activeAnimation = humanoid:LoadAnimation(animation)
+activeAnimation:Play()
+end
 
-            coroutine.wrap(function()
-                while GetBangedActive and SelectedPlayer and SelectedPlayer.Character do
-                    local targetHRP = SelectedPlayer.Character:FindFirstChild("HumanoidRootPart")
-                    local localHRP = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                    if targetHRP and localHRP then
-                        localHRP.CFrame = targetHRP.CFrame * CFrame.new(0, 0, -1.5)
-                    end
-                    task.wait(0.1)
-                end
-                if activeAnimation then activeAnimation:Stop() end
-            end)()
-        end
-    end
+coroutine.wrap(function()
+while GetBangedActive and SelectedPlayer and SelectedPlayer.Character do
+local targetHRP = SelectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+local localHRP = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+if targetHRP and localHRP then
+localHRP.CFrame = targetHRP.CFrame * CFrame.new(0, 0, -1.5)
+end
+task.wait(0.1)
+end
+if activeAnimation then activeAnimation:Stop() end
+end)()
+end
+end
 })
 
+-- 🟢 Dropdown: Selecionar jogador para imitar chat
 local allPlayerNames = {}
 for _, plr in ipairs(Players:GetPlayers()) do
-    table.insert(allPlayerNames, plr.DisplayName)
+table.insert(allPlayerNames, plr.DisplayName)
 end
 
 TrollTab:Dropdown({
-    Title = "Selecionar Jogador para Imitar Chat",
-    Desc = "Escolha um jogador para copiar o chat",
-    Multi = false,
-    Value = allPlayerNames[1] or nil,
-    AllowNone = true,
-    Values = allPlayerNames,
-    Callback = function(selected)
-        if selected[1] then
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p.DisplayName == selected[1] then
-                    SelectedPlayer = p
-                    break
-                end
-            end
-        end
-    end
+Title = "Selecionar Jogador para Imitar Chat",
+Desc = "Escolha um jogador para copiar o chat",
+Multi = false,
+Value = allPlayerNames[1] or nil,
+AllowNone = true,
+Values = allPlayerNames,
+Callback = function(selected)
+if selected[1] then
+for _, p in ipairs(Players:GetPlayers()) do
+if p.DisplayName == selected[1] then
+SelectedPlayer = p
+break
+end
+end
+end
+end
 })
 
+-- 🟢 Toggle: Imitar Chat
 TrollTab:Toggle({
-    Title = "Imitar Chat",
-    Value = false,
-    Callback = function(enabled)
-        if enabled then
-            if SelectedPlayer then
-                imitarChatConnection = SelectedPlayer.Chatted:Connect(function(msg)
-                    pcall(function()
-                        game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(msg)
-                    end)
-                end)
-            end
-        else
-            if imitarChatConnection then
-                imitarChatConnection:Disconnect()
-            end
-        end
-    end
+Title = "Imitar Chat",
+Value = false,
+Callback = function(enabled)
+if enabled then
+if SelectedPlayer then
+imitarChatConnection = SelectedPlayer.Chatted:Connect(function(msg)
+pcall(function()
+game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(msg)
+end)
+end)
+end
+else
+if imitarChatConnection then
+imitarChatConnection:Disconnect()
+end
+end
+end
 })
 
 TrollTab:Button({ Title = "Jerk", Desc = "Clique para iniciar a ação.", Callback = function() 
@@ -1434,7 +1660,7 @@ ParceirosTab:Input({ Title = "JobId do Servidor", Placeholder = "Cole o JobId aq
 end})
 ParceirosTab:Button({ Title = "Entrar no Servidor", Callback = function()
     if jobId and jobId ~= "" then 
-        TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, LocalPlayer)
+        TeleportService:TeleportToPlaceInstance(PlaceId, jobId, LocalPlayer)
         notify("Entrando...", "Você está sendo teleportado!", 3)
     else 
         notify("Erro", "Digite um JobId válido!", 3) 
@@ -1468,328 +1694,36 @@ ItemTab:Button({ Title = "Pegar Celular", Callback = function()
     getItem("Celular", "2143355240") 
 end})
 
--- [Admin Tab] - Apenas para donos e moderadores
+-- [Admin Tab] - Apenas para donos e moderadores (SEM BOTÕES DE DONO)
 if isAutorizado and AdminTab then
-    local commandsList = {
-        ";copy [jogador] - Copia a skin do jogador.",
-        ";tp [jogador] - Teleporta até o jogador.",
-        ";ws [valor] - Define velocidade.",
-        ";rews - Velocidade padrão (16).",
-        ";jp [valor] - Define pulo.",
-        ";rejp - Pulo padrão (10).",
-        ";re - Reseta skin.",
-        ";reset - Reinicia personagem no local da morte.",
-        ";autocolor_on - Cor automática ativada.",
-        ";autocolor_off - Cor automática desativada.",
-        ";rejoin - Reentra no servidor.",
-        ";view [jogador] - Visualiza jogador.",
-        ";unview - Para de visualizar.",
-        ";spawn - Salva posição atual como spawn.",
-        ";remove_spawn - Remove spawn salvo.",
-        ";loop-reset - Ativa loop de reset.",
-        ";unloop-reset - Desativa loop de reset.",
-        ";unbanvc - Reentra no Voice Chat.",
-        ";cmds - Lista todos comandos."
-    }
-
-    local savedSpawn = nil
-    local spawnEnabled = false
-    local loopResetActive = false
-    local loopResetThread = nil
-
-    -- Função para achar jogador por nome ou display name
-    local function FindPlayer(name)
-        name = name:lower()
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p.Name:lower():sub(1, #name) == name:lower() or p.DisplayName:lower():sub(1, #name) == name:lower() then
-                return p
-            end
-        end
-    end
-
-    -- Funções principais
-    local function CopySkin(name)
-        local target = FindPlayer(name)
-        if target and target.Character and target.Character:FindFirstChild("Humanoid") then
-            local args = { target.Character.Humanoid.HumanoidDescription, true }
-            ReplicatedStorage.Events.TryBuy.Try:FireServer(unpack(args))
-            notify("Blessed Hub", "Skin copiada de: " .. target.Name, 3)
-        else
-            notify("Blessed Hub", "Jogador não encontrado.", 3)
-        end
-    end
-
-    local function TeleportToPlayer(name)
-        local target = FindPlayer(name)
-        local myChar = LocalPlayer.Character
-        if target and target.Character and myChar then
-            local tHRP = target.Character:FindFirstChild("HumanoidRootPart")
-            local myHRP = myChar:FindFirstChild("HumanoidRootPart")
-            if tHRP and myHRP then
-                myHRP.CFrame = tHRP.CFrame
-                notify("Blessed Hub", "Teleportado para: " .. target.Name, 3)
-            end
-        end
-    end
-
-    local function SetSpeed(val)
-        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.WalkSpeed = tonumber(val) or 16
-            notify("Blessed Hub", "Velocidade: " .. hum.WalkSpeed, 3)
-        end
-    end
-
-    local function SetJumpHeight(val)
-        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.JumpHeight = tonumber(val) or 10
-            notify("Blessed Hub", "Pulo: " .. hum.JumpHeight, 3)
-        end
-    end
-
-    local function ResetSkin()
-        ReplicatedStorage:WaitForChild("Events"):WaitForChild("Refresh"):FireServer()
-        notify("Blessed Hub", "Skin reiniciada.", 3)
-    end
-
-    local function ResetCharacter()
-        local char = LocalPlayer.Character
-        if char and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") then
-            local pos = char.HumanoidRootPart.Position
-            respawnAtDeathPosition = true
-            LocalPlayer.CharacterAdded:Once(function(newChar)
-                newChar:WaitForChild("HumanoidRootPart")
-                repeat task.wait() until newChar:FindFirstChild("Humanoid") and newChar.Humanoid.Health > 0
-                if respawnAtDeathPosition then
-                    task.wait(0.1)
-                    newChar.HumanoidRootPart.CFrame = CFrame.new(pos)
-                    respawnAtDeathPosition = false
-                end
-            end)
-            char.Humanoid.Health = 0
-        else
-            notify("Blessed Hub", "Erro ao resetar personagem.", 3)
-        end
-    end
-
-    local function StartColorChange()
-        task.spawn(function()
-            while ColorChangeActive do
-                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                    local newColor = Color3.new(math.random(), math.random(), math.random())
-                    local args = {
-                        [1] = {
-                            ["BodyColor"] = {
-                                ["HeadColor"] = newColor,
-                                ["TorsoColor"] = newColor,
-                                ["LeftArmColor"] = newColor,
-                                ["RightArmColor"] = newColor,
-                                ["LeftLegColor"] = newColor,
-                                ["RightLegColor"] = newColor
-                            }
-                        }
-                    }
-                    ReplicatedStorage.BloxbizRemotes.CatalogOnApplyToRealHumanoid:FireServer(unpack(args))
-                end
-                task.wait(0.1)
-            end
-        end)
-    end
-
-    local function Rejoin()
-        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-    end
-
-    local function ViewPlayer(playerName)
-        local target = FindPlayer(playerName)
-        if target and target.Character then
-            local humanoid = target.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                workspace.CurrentCamera.CameraSubject = humanoid
-                notify("Blessed Hub", "Visualizando: " .. target.Name, 3)
-            end
-        else
-            notify("Blessed Hub", "Jogador não encontrado.", 3)
-        end
-    end
-
-    local function UnviewPlayer()
-        local char = LocalPlayer.Character
-        if char then
-            local humanoid = char:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                workspace.CurrentCamera.CameraSubject = humanoid
-                notify("Blessed Hub", "Parou de visualizar outros jogadores.", 3)
-            end
-        end
-    end
-
-    local function StartLoopReset()
-        if loopResetActive then return end
-        loopResetActive = true
-        notify("Loop Reset", "Loop de reset ativado!", 3)
-        loopResetThread = task.spawn(function()
-            while loopResetActive do
-                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                    LocalPlayer.Character.Humanoid.Health = 0
-                end
-                task.wait(0.5)
-            end
-        end)
-    end
-
-    local function StopLoopReset()
-        if not loopResetActive then return end
-        loopResetActive = false
-        notify("Loop Reset", "Loop de reset desativado!", 3)
-    end
-
-    -- Função principal de comandos
-    function handleChatCommand(message)
-        local msg = message:lower()
-        local args = string.split(msg, " ")
-        local command = args[1]
-        local param = table.concat(args, " ", 2)
-
-        if command == ";copy" then CopySkin(param)
-        elseif command == ";tp" then TeleportToPlayer(param)
-        elseif command == ";ws" then SetSpeed(param)
-        elseif command == ";rews" then SetSpeed(16)
-        elseif command == ";jp" then SetJumpHeight(param)
-        elseif command == ";rejp" then SetJumpHeight(10)
-        elseif command == ";re" then ResetSkin()
-        elseif command == ";reset" then ResetCharacter()
-        elseif command == ";autocolor_on" then if not ColorChangeActive then ColorChangeActive = true StartColorChange() notify("Blessed Hub", "Cor automática ativada.", 3) end
-        elseif command == ";autocolor_off" then ColorChangeActive = false notify("Blessed Hub", "Cor automática desativada.", 3)
-        elseif command == ";rejoin" then notify("Blessed Hub", "Reentrando no servidor...", 3) Rejoin()
-        elseif command == ";view" then ViewPlayer(param)
-        elseif command == ";unview" then UnviewPlayer()
-        elseif command == ";spawn" then
-            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                savedSpawn = LocalPlayer.Character.HumanoidRootPart.CFrame
-                spawnEnabled = true
-                notify("Spawn", "Spawn salvo com sucesso!", 3)
-            end
-        elseif command == ";remove_spawn" then
-            savedSpawn = nil
-            spawnEnabled = false
-            notify("Spawn", "Spawn removido com sucesso!", 3)
-        elseif command == ";loop-reset" then StartLoopReset()
-        elseif command == ";unloop-reset" then StopLoopReset()
-        elseif command == ";unbanvc" then
-            local success, err = pcall(function() return VoiceChatService:JoinVoice() end)
-            if success then notify("Blessed Hub", "Você entrou no Voice Chat!", 3)
-            else notify("Blessed Hub", "Erro ao entrar no Voice Chat: " .. tostring(err), 3)
-            end
-        elseif command == ";cmds" then
-            notify("Comandos Disponíveis", table.concat(commandsList, "\n"), 15)
-        end
-    end
-
-    -- Evento para os comandos de chat (Admin)
-    LocalPlayer.Chatted:Connect(handleChatCommand)
-
-    -- Botões da Admin Tab
-    AdminTab:Button({ Title = "Ativar Comandos ADM", Description = "Digite os comandos no chat, ex: ;copy nome", Callback = function()
-        notify("Blessed Hub", "Comandos de ADM ativados! Digite ;cmds no chat para ver.", 2)
-    end})
+    AdminTab:Section({ Title = "Comandos de Admin via Chat", TextSize = 18 })
+    AdminTab:Label({ Title = "Os comandos já estão ATIVADOS.", TextSize = 14 })
+    AdminTab:Label({ Title = "Digite ;cmds no chat para ver a lista.", TextSize = 14 })
     AdminTab:Button({ Title = "Ver Comandos Disponíveis", Description = "Lista todos os comandos que você pode usar no chat.", Callback = function()
         notify("Comandos Disponíveis", table.concat(commandsList, "\n"), 15)
     end})
-
-    -- Comandos de Admin (apenas para donos)
-    if isDono then
-        AdminTab:Section({ Title = "Comandos Exclusivos de Dono", TextSize = 16 })
-        
-        -- Botões para comandos de admin
-        local playerList = {}
-        for _, plr in ipairs(Players:GetPlayers()) do
-            table.insert(playerList, plr.Name)
-        end
-        
-        local SelectedPlayerForCommand = playerList[1]
-        
-        AdminTab:Dropdown({
-            Title = "Selecionar Jogador",
-            Options = playerList,
-            CurrentOption = SelectedPlayerForCommand,
-            MultiSelection = false,
-            Flag = "DropdownPlayers",
-            Callback = function(Value)
-                SelectedPlayerForCommand = Value
-            end
-        })
-        
-        -- Atualiza o dropdown quando players entram/saem
-        Players.PlayerAdded:Connect(function()
-            local list = {}
-            for _, plr in ipairs(Players:GetPlayers()) do
-                table.insert(list, plr.Name)
-            end
-            if not table.find(list, SelectedPlayerForCommand) then
-                SelectedPlayerForCommand = list[1]
-            end
-        end)
-        Players.PlayerRemoving:Connect(function()
-            local list = {}
-            for _, plr in ipairs(Players:GetPlayers()) do
-                table.insert(list, plr.Name)
-            end
-            if not table.find(list, SelectedPlayerForCommand) then
-                SelectedPlayerForCommand = list[1]
-            end
-        end)
-        
-        local commands = {
-            {Name="Kick", Func=Kick},
-            {Name="Kill", Func=Kill},
-            {Name="KillPlus", Func=KillPlus},
-            {Name="Fling", Func=Fling},
-            {Name="Freeze", Func=Freeze},
-            {Name="Verifique", Func=Verifique},
-            {Name="TimeoutRoblox", Func=TimeoutRoblox}
-        }
-        
-        -- Criação de botões
-        for _, cmd in ipairs(commands) do
-            AdminTab:Button({
-                Name = cmd.Name,
-                Callback = function()
-                    if cmd.Name == "Verifique" then
-                        SendCommandMessage("verifique")
-                        cmd.Func()
-                    elseif cmd.Name == "TimeoutRoblox" then
-                        SendCommandMessage("timeoutroblox")
-                        cmd.Func()
-                    else
-                        SendCommandMessage(cmd.Name:lower(), SelectedPlayerForCommand)
-                        cmd.Func(SelectedPlayerForCommand)
-                    end
-                end
-            })
-        end
-    end
 end
 
 -- [Settings/Window Tab]
-WindowTab:Button({ Title = "Relogar", Desc = "Clique aqui para relogar no jogo.", Callback = function() 
-    TeleportService:Teleport(game.PlaceId, LocalPlayer) 
+WindowTab:Button({ Title = "Relogar", Desc = "Clique aqui para relogar no jogo.", Callback = function()
+TeleportService:Teleport(PlaceId, Player)
 end})
 
 -- [Extras Tab]
 ExtraTab:Button({ Title = "Executar Infinite Yield", Desc = "Clique para executar o script Infinite Yield.", Callback = function()
-    local success, err = pcall(function() 
-        loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))() 
-    end)
-    if success then 
-        notify("Script Executado", "Infinite Yield foi executado com sucesso.", 5)
-    else 
-        notify("Erro", "Falha ao executar o script: " .. tostring(err), 5) 
-    end
+local success, err = pcall(function()
+loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
+end)
+if success then
+notify("Script Executado", "Infinite Yield foi executado com sucesso.", 5)
+else
+notify("Erro", "Falha ao executar o script: " .. tostring(err), 5)
+end
 end})
 
--- Conexões de Eventos e Execução Inicial
+-- =====================================================
+-- 5. CONEXÕES DE EVENTOS E EXECUÇÃO INICIAL
+-- =====================================================
 
 -- Evento para Noclip
 RunService.Stepped:Connect(function()
