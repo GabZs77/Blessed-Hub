@@ -337,28 +337,26 @@ local BLESSED_USERS = {}
 -- Função para criar uma tag flutuante acima da cabeça do jogador
 local function createUserTag(player)
     -- Verifica se o jogador já tem uma tag
-    if player.Character:FindFirstChild("BlessedUserTag") then
+    if player.Character and player.Character:FindFirstChild("BlessedUserTag") then
         return
     end
     
-    -- Cria a parte principal da tag
-    local tagPart = Instance.new("Part")
-    tagPart.Name = "BlessedUserTag"
-    tagPart.Size = Vector3.new(1, 0.1, 1)
-    tagPart.Material = Enum.Material.ForceField
-    tagPart.Transparency = 0.3
-    tagPart.CanCollide = false
-    tagPart.Anchored = false
-    tagPart.BrickColor = BrickColor.new("New Yeller")
+    -- Espera o personagem carregar completamente
+    if not player.Character then
+        player.CharacterAdded:Wait()
+    end
+    
+    local head = player.Character:WaitForChild("Head")
+    
+    -- Cria o BillboardGui diretamente na cabeça do jogador
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "BlessedUserTag"
+    billboard.Size = UDim2.new(0, 100, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 1, 0) -- Ajustado para ficar logo acima da cabeça
+    billboard.AlwaysOnTop = true
+    billboard.Parent = head
     
     -- Cria o texto da tag
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "BlessedUserBillboard"
-    billboard.Size = UDim2.new(0, 100, 0, 50)
-    billboard.StudsOffset = Vector3.new(0, 3, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Parent = tagPart
-    
     local textLabel = Instance.new("TextLabel")
     textLabel.Size = UDim2.new(1, 0, 1, 0)
     textLabel.BackgroundTransparency = 1
@@ -371,20 +369,18 @@ local function createUserTag(player)
     textLabel.Parent = billboard
     
     -- Adiciona um brilho à tag
-    local glow = Instance.new("PointLight")
-    glow.Color = Color3.fromRGB(255, 215, 0)
-    glow.Brightness = 1.5
-    glow.Range = 5
-    glow.Parent = tagPart
+    local glow = Instance.new("Frame")
+    glow.Size = UDim2.new(1, 10, 1, 10)
+    glow.Position = UDim2.new(0, -5, 0, -5)
+    glow.BackgroundTransparency = 0.7
+    glow.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+    glow.BorderSizePixel = 0
+    glow.Parent = textLabel
     
-    -- Conecta a tag à cabeça do jogador
-    local head = player.Character:WaitForChild("Head")
-    local weld = Instance.new("WeldConstraint")
-    weld.Part0 = tagPart
-    weld.Part1 = head
-    weld.Parent = tagPart
-    
-    tagPart.Parent = player.Character
+    -- Adiciona um efeito de arredondamento ao brilho
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 15)
+    corner.Parent = glow
 end
 
 -- Função para verificar se um jogador é um usuário do Blessed Hub
@@ -762,7 +758,7 @@ CreditTab:Button({ Title = "Copiar Link do Servidor Discord", Callback = functio
     notify("Sucesso!", "Link do discord copiado.", 3) 
 end})
 CreditTab:Code({ Title = "Creditos do script", Code = [[Esse script foi feito com muito carinho pela equipe Blessed Team ❤️. Muito obrigado por usar o Blessed Hub 😊
-Desenvolvedores: Gab Scripts, Robson e Mystic
+Desenvolvedores: Gab Scripts (GHOST) e Robson
 Helpers: Kauan e Anna]] })
 
 -- [Main Tab]
