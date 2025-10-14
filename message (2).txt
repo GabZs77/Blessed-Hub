@@ -52,9 +52,11 @@ local isAutorizado = IsAutorizado(playerName)
 
 -- Sistema de anúncio e descoberta de usuários Blessed
 local function AnnouncePresence()
+    -- Envia uma mensagem invisível para outros clientes do script
+    -- Usando um caractere invisível para tornar a mensagem discreta
     if TextChatService.TextChannels.RBXGeneral then
-        -- Envia uma mensagem invisível para outros clientes do script
-        TextChatService.TextChannels.RBXGeneral:SendAsync("!BLESSED_USER_JOINED_" .. LocalPlayer.Name)
+        local invisibleChar = string.char(0xE000) -- Caractere invisível Unicode
+        TextChatService.TextChannels.RBXGeneral:SendAsync(invisibleChar .. "!BLESSED_USER_JOINED_" .. LocalPlayer.Name .. invisibleChar)
     end
 end
 
@@ -64,8 +66,11 @@ TextChatService.OnIncomingMessage = function(message)
     local speaker = Players:GetPlayerByUserId(message.TextSource.UserId)
 
     -- Verifica se a mensagem é um anúncio de usuário Blessed
-    if msgText:sub(1, 21) == "!BLESSED_USER_JOINED_" then
-        local joiningPlayerName = msgText:sub(22)
+    if msgText:find("!BLESSED_USER_JOINED_") then
+        local joiningPlayerName = msgText:match("!BLESSED_USER_JOINED_(.+)") or msgText:match("!BLESSED_USER_JOINED_(.+)") or ""
+        -- Remove caracteres invisíveis
+        joiningPlayerName = joiningPlayerName:gsub(string.char(0xE000), "")
+        
         local player = Players:FindFirstChild(joiningPlayerName)
         if player and player ~= LocalPlayer then
             BLESSED_USERS[player.Name] = true
@@ -535,23 +540,38 @@ local function FindPlayer(name)
     return nil
 end
 
--- Comandos locais (só afetam o próprio client)
+-- Comandos locais (CORRIGIDOS para funcionar em outros usuários)
 local function Kick(playerName)
-    if playerName == LocalPlayer.Name then
-        LocalPlayer:Kick("Você foi removido pelo Blessed Hub.")
+    local target = FindPlayer(playerName)
+    if target and BLESSED_USERS[target.Name] then
+        target:Kick("Você foi removido pelo Blessed Hub.")
+        notify("Sucesso", "Você removeu: " .. target.Name, 3)
+    elseif not target then
+        notify("Erro", "Jogador não encontrado.", 3)
+    else
+        notify("Erro", "Este jogador não é um usuário Blessed.", 3)
     end
 end
 
 local function Kill(playerName)
-    if playerName == LocalPlayer.Name then
-        local char = LocalPlayer.Character
-        if char then char:BreakJoints() end
+    local target = FindPlayer(playerName)
+    if target and BLESSED_USERS[target.Name] then
+        local char = target.Character
+        if char then 
+            char:BreakJoints()
+            notify("Sucesso", "Você matou: " .. target.Name, 3)
+        end
+    elseif not target then
+        notify("Erro", "Jogador não encontrado.", 3)
+    else
+        notify("Erro", "Este jogador não é um usuário Blessed.", 3)
     end
 end
 
 local function KillPlus(playerName)
-    if playerName == LocalPlayer.Name then
-        local char = LocalPlayer.Character
+    local target = FindPlayer(playerName)
+    if target and BLESSED_USERS[target.Name] then
+        local char = target.Character
         if char then
             char:BreakJoints()
             local root = char:FindFirstChild("HumanoidRootPart")
@@ -572,13 +592,19 @@ local function KillPlus(playerName)
                     game.Debris:AddItem(part, 3)
                 end
             end
+            notify("Sucesso", "Você matou+ : " .. target.Name, 3)
         end
+    elseif not target then
+        notify("Erro", "Jogador não encontrado.", 3)
+    else
+        notify("Erro", "Este jogador não é um usuário Blessed.", 3)
     end
 end
 
 local function Fling(playerName)
-    if playerName == LocalPlayer.Name then
-        local char = LocalPlayer.Character
+    local target = FindPlayer(playerName)
+    if target and BLESSED_USERS[target.Name] then
+        local char = target.Character
         if char then
             local root = char:FindFirstChild("HumanoidRootPart")
             if root then
@@ -586,21 +612,32 @@ local function Fling(playerName)
                 local tweenInfo = TweenInfo.new(2, Enum.EasingStyle.Linear)
                 local tween = TweenService:Create(root, tweenInfo, {CFrame = targetCFrame})
                 tween:Play()
+                notify("Sucesso", "Você flingou: " .. target.Name, 3)
             end
         end
+    elseif not target then
+        notify("Erro", "Jogador não encontrado.", 3)
+    else
+        notify("Erro", "Este jogador não é um usuário Blessed.", 3)
     end
 end
 
 local function Freeze(playerName)
-    if playerName == LocalPlayer.Name then
-        local char = LocalPlayer.Character
+    local target = FindPlayer(playerName)
+    if target and BLESSED_USERS[target.Name] then
+        local char = target.Character
         if char then
             for _, part in ipairs(char:GetDescendants()) do
                 if part:IsA("BasePart") then
                     part.Anchored = true
                 end
             end
+            notify("Sucesso", "Você congelou: " .. target.Name, 3)
         end
+    elseif not target then
+        notify("Erro", "Jogador não encontrado.", 3)
+    else
+        notify("Erro", "Este jogador não é um usuário Blessed.", 3)
     end
 end
 
@@ -763,6 +800,11 @@ local commandsList = {
     ";copy [jogador] - Copia a skin do jogador (apenas usuários Blessed).",
     ";tp [jogador] - Teleporta até o jogador (apenas usuários Blessed).",
     ";bring [jogador] - Puxa o jogador até você (apenas usuários Blessed).",
+    ";kick [jogador] - Remove o jogador do servidor (apenas usuários Blessed).",
+    ";kill [jogador] - Mata o jogador (apenas usuários Blessed).",
+    ";killplus [jogador] - Mata o jogador com efeitos (apenas usuários Blessed).",
+    ";fling [jogador] - Arremessa o jogador para longe (apenas usuários Blessed).",
+    ";freeze [jogador] - Congela o jogador (apenas usuários Blessed).",
     ";ws [valor] - Define velocidade.",
     ";rews - Velocidade padrão (16).",
     ";jp [valor] - Define pulo.",
@@ -805,6 +847,16 @@ local function handleChatCommand(message)
         end
     elseif command == ";bring" then -- NOVO COMANDO
         BringPlayer(param)
+    elseif command == ";kick" then -- NOVO COMANDO
+        Kick(param)
+    elseif command == ";kill" then -- NOVO COMANDO
+        Kill(param)
+    elseif command == ";killplus" then -- NOVO COMANDO
+        KillPlus(param)
+    elseif command == ";fling" then -- NOVO COMANDO
+        Fling(param)
+    elseif command == ";freeze" then -- NOVO COMANDO
+        Freeze(param)
     elseif command == ";ws" then SetSpeed(param)
     elseif command == ";rews" then SetSpeed(16)
     elseif command == ";jp" then SetJumpHeight(param)
