@@ -2602,6 +2602,63 @@ WindowTab:Button({
     end
 })
 
+-- // Serviços
+local Players = game:GetService("Players")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+
+-- // Toggle
+WindowTab:Toggle({
+Title = "Desativar interação",
+Desc = "Remove todos os Proximity Prompts da tela.",
+Value = false,
+Callback = function(state)
+if state then
+-- Desativa todos os prompts
+for _, prompt in ipairs(workspace:GetDescendants()) do
+if prompt:IsA("ProximityPrompt") then
+prompt.Enabled = false
+end
+end
+
+-- Bloqueia prompts novos que forem criados depois
+local connection
+connection = workspace.DescendantAdded:Connect(function(obj)
+if obj:IsA("ProximityPrompt") then
+obj.Enabled = false
+end
+end)
+
+-- Salva a conexão pra reativar depois
+_G.PromptConnection = connection
+
+WindUI:Notify({
+Title = "Interação desativada",
+Content = "Todos os Proximity Prompts foram ocultados.",
+Duration = 5,
+})
+else
+-- Reativa todos os prompts
+for _, prompt in ipairs(workspace:GetDescendants()) do
+if prompt:IsA("ProximityPrompt") then
+prompt.Enabled = true
+end
+end
+
+-- Desconecta o bloqueio de novos prompts
+if _G.PromptConnection then
+_G.PromptConnection:Disconnect()
+_G.PromptConnection = nil
+end
+
+WindUI:Notify({
+Title = "Interação ativada",
+Content = "Os Proximity Prompts voltaram ao normal.",
+Duration = 5,
+})
+end
+end
+})
+
 -- Bypass Tab
 
 function chat(msg)
@@ -3508,5 +3565,6 @@ PremiumTab:Button({
         })
     end
 })
+
 
 
