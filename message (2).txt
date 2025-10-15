@@ -392,18 +392,18 @@ local ItemTab = Window:Tab({
 })
 
 local PremiumTab = Window:Tab({
-    Title = "Premium",
-    Icon = "rbxassetid://120011858138977",
-})
-
-local WindowTab = Window:Tab({
-    Title = "Settings",
-    Icon = "settings",
+    Title = "Admin",
+    Icon = "hammer",
 })
 
 local ExtraTab = Window:Tab({
     Title = "Extras",
     Icon = "grid",
+})
+
+local WindowTab = Window:Tab({
+    Title = "Settings",
+    Icon = "settings",
 })
 
 MainTab:Paragraph({
@@ -3565,6 +3565,7 @@ PremiumTab:Button({
         })
     end
 })
+
 
 
 
