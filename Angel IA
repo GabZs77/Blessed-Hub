@@ -1,0 +1,229 @@
+-- // Angel IA - Chat Futurista e Interativo
+-- Criado por Gab Scripts (GHOST)
+
+--== CONFIG ==--
+local API_KEY = "AIzaSyDSIy5m7mTXlMMR_OOdCu2Af_EwoCd124w"
+local API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" .. API_KEY
+local systemPrompt = [[
+Você se chama Angel IA e foi criada pelo Gab Scripts, também conhecido como "GHOST".
+Você auxilia jogadores do Roblox a programar, criar scripts e tirar dúvidas gerais.
+Mantenha tom amigável, direto e útil.
+Quando enviar códigos, use ```lua ... ``` e quando quiser destacar títulos use #, negrito use * ou **.
+	]]
+	
+	--== SERVIÇOS ==--
+	local HttpService = game:GetService("HttpService")
+	local TweenService = game:GetService("TweenService")
+	local Players = game:GetService("Players")
+	local LocalPlayer = Players.LocalPlayer
+	
+	--== GUI PRINCIPAL ==--
+	local gui = Instance.new("ScreenGui", game.CoreGui)
+	gui.Name = "AngelIA"
+	gui.ResetOnSpawn = false
+	
+	--== TOGGLE LATERAL ==--
+	local Toggle = Instance.new("TextButton")
+	Toggle.Size = UDim2.new(0, 80, 0, 35)
+	Toggle.Position = UDim2.new(0, 20, 0.5, -17)
+	Toggle.Text = "💬 Angel IA"
+	Toggle.Font = Enum.Font.GothamBold
+	Toggle.TextSize = 16
+	Toggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+	Toggle.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+	Toggle.Parent = gui
+	local ToggleCorner = Instance.new("UICorner", Toggle)
+	ToggleCorner.CornerRadius = UDim.new(0, 10)
+	
+	--== JANELA PRINCIPAL ==--
+	local Main = Instance.new("Frame")
+	Main.Size = UDim2.new(0, 350, 0, 380)
+	Main.Position = UDim2.new(0.5, -175, 0.5, -190)
+	Main.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+	Main.BorderSizePixel = 0
+	Main.Active = true
+	Main.Draggable = true
+	Main.Parent = gui
+	local MainCorner = Instance.new("UICorner", Main)
+	MainCorner.CornerRadius = UDim.new(0, 12)
+	
+	--== CABEÇALHO ==--
+	local Header = Instance.new("Frame", Main)
+	Header.Size = UDim2.new(1, 0, 0, 40)
+	Header.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+	local HeaderCorner = Instance.new("UICorner", Header)
+	HeaderCorner.CornerRadius = UDim.new(0, 12)
+	local Title = Instance.new("TextLabel", Header)
+	Title.Size = UDim2.new(1, -10, 1, 0)
+	Title.Position = UDim2.new(0, 10, 0, 0)
+	Title.Text = "🤖 Angel IA"
+	Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	Title.TextSize = 20
+	Title.Font = Enum.Font.GothamBold
+	Title.BackgroundTransparency = 1
+	Title.TextXAlignment = Enum.TextXAlignment.Left
+	
+	--== CHAT FRAME ==--
+	local ChatFrame = Instance.new("ScrollingFrame", Main)
+	ChatFrame.Size = UDim2.new(1, -10, 1, -85)
+	ChatFrame.Position = UDim2.new(0, 5, 0, 45)
+	ChatFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+	ChatFrame.BorderSizePixel = 0
+	ChatFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	ChatFrame.ScrollBarThickness = 5
+	local ChatLayout = Instance.new("UIListLayout", ChatFrame)
+	ChatLayout.Padding = UDim.new(0, 8)
+	ChatLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	
+	--== INPUT ==--
+	local Input = Instance.new("TextBox", Main)
+	Input.Size = UDim2.new(1, -10, 0, 40)
+	Input.Position = UDim2.new(0, 5, 1, -45)
+	Input.PlaceholderText = "Digite sua mensagem..."
+	Input.TextColor3 = Color3.fromRGB(255, 255, 255)
+	Input.TextSize = 16
+	Input.Font = Enum.Font.Gotham
+	Input.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+	local InputCorner = Instance.new("UICorner", Input)
+	InputCorner.CornerRadius = UDim.new(0, 10)
+	
+	--== FUNÇÕES AUXILIARES ==--
+	local function PlaySound()
+	local sound = Instance.new("Sound", Main)
+	sound.SoundId = "rbxassetid://9118823103"
+	sound.Volume = 1
+	sound.PlayOnRemove = true
+	sound:Destroy()
+	end
+	
+	local function FormatText(text)
+	text = text:gsub("%*%*(.-)%*%*", "<b>%1</b>")
+	text = text:gsub("%*(.-)%*", "<b>%1</b>")
+	text = text:gsub("<b>(.-)</b>", "<font size='22'><b>%1</b></font>")
+	return text
+	end
+	
+	local function AddMessage(sender, content)
+	local isUser = sender == "Você"
+	local Container = Instance.new("Frame", ChatFrame)
+	Container.BackgroundTransparency = 1
+	Container.Size = UDim2.new(1, 0, 0, 0)
+	Container.AutomaticSize = Enum.AutomaticSize.Y
+	
+	-- Mensagem código
+	if content:match("```lua") then
+	local codeText = content:match("```lua\n(.-)```")
+	local CodeBox = Instance.new("Frame", Container)
+	CodeBox.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+	CodeBox.Size = UDim2.new(1, isUser and -50 or -20, 0, 0)
+	CodeBox.AutomaticSize = Enum.AutomaticSize.Y
+	CodeBox.ClipsDescendants = true
+	local Corner = Instance.new("UICorner", CodeBox)
+	Corner.CornerRadius = UDim.new(0, 8)
+	
+	local CodeLabel = Instance.new("TextLabel", CodeBox)
+	CodeLabel.Text = codeText
+	CodeLabel.Font = Enum.Font.Code
+	CodeLabel.TextSize = 15
+	CodeLabel.TextColor3 = Color3.fromRGB(255,255,255)
+	CodeLabel.TextWrapped = true
+	CodeLabel.BackgroundTransparency = 1
+	CodeLabel.Size = UDim2.new(1, -10, 0, 0)
+	CodeLabel.AutomaticSize = Enum.AutomaticSize.Y
+	CodeLabel.TextXAlignment = Enum.TextXAlignment.Left
+	CodeLabel.TextYAlignment = Enum.TextYAlignment.Top
+	
+	local CopyBtn = Instance.new("TextButton", CodeBox)
+	CopyBtn.Text = "📋 Copiar"
+	CopyBtn.Size = UDim2.new(0, 80, 0, 25)
+	CopyBtn.Position = UDim2.new(1, -85, 1, -28)
+	CopyBtn.BackgroundColor3 = Color3.fromRGB(70,70,85)
+	CopyBtn.TextColor3 = Color3.fromRGB(255,255,255)
+	CopyBtn.Font = Enum.Font.GothamBold
+	CopyBtn.TextSize = 14
+	local BtnCorner = Instance.new("UICorner", CopyBtn)
+	BtnCorner.CornerRadius = UDim.new(0,6)
+	CopyBtn.MouseButton1Click:Connect(function()
+	setclipboard(CodeLabel.Text)
+	CopyBtn.Text = "✅ Copiado!"
+	task.wait(1)
+	CopyBtn.Text = "📋 Copiar"
+	end)
+	
+	-- Mensagem normal
+	else
+	local Msg = Instance.new("TextLabel", Container)
+	Msg.BackgroundTransparency = 1
+	Msg.TextWrapped = true
+	Msg.Size = UDim2.new(1, isUser and -50 or -20, 0, 0)
+	Msg.AutomaticSize = Enum.AutomaticSize.Y
+	Msg.Font = Enum.Font.Gotham
+	Msg.RichText = true
+	Msg.TextColor3 = isUser and Color3.fromRGB(0,180,255) or Color3.fromRGB(180,255,180)
+	Msg.TextXAlignment = isUser and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
+	Msg.TextYAlignment = Enum.TextYAlignment.Top
+	Msg.Text = FormatText(content)
+	end
+	end
+	
+	--== ENVIO PARA IA ==--
+	local function AskAI(msg)
+	AddMessage("Você", msg)
+	AddMessage("Angel IA", "Digitando...")
+	
+	task.spawn(function()
+	local payload = {
+	contents = {{
+				role="user",
+				parts={{text = systemPrompt.."\nPergunta: "..msg}}
+	}}
+	}
+	local responseFunc = syn and syn.request or http_request or request or (http and http.request)
+	if not responseFunc then
+	AddMessage("Angel IA", "❌ Seu executor não suporta requisições HTTP.")
+	return
+	end
+	local res = responseFunc({
+	Url = API_URL,
+	Method = "POST",
+	Headers = {["Content-Type"]="application/json"},
+	Body = HttpService:JSONEncode(payload)
+	})
+	if res and res.Body then
+	local data = HttpService:JSONDecode(res.Body)
+	local output = data.candidates and data.candidates[1].content.parts[1].text or "Erro ao processar resposta."
+	for _,v in pairs(ChatFrame:GetChildren()) do
+	if v:IsA("TextLabel") and v.Text == "Digitando..." then v:Destroy() end
+	end
+	PlaySound()
+	AddMessage("Angel IA", output)
+	else
+	AddMessage("Angel IA", "❌ Falha ao conectar à IA.")
+	end
+	end)
+	end
+	
+	--== INPUT ENVIO ==--
+	Input.FocusLost:Connect(function(enter)
+	if enter and Input.Text~="" then
+	AskAI(Input.Text)
+	Input.Text = ""
+	end
+	end)
+	
+	--== TOGGLE VISIBILIDADE ==--
+	local visible = true
+	Toggle.MouseButton1Click:Connect(function()
+	visible = not visible
+	if visible then
+	Main.Visible = true
+	TweenService:Create(Main, TweenInfo.new(0.4), {Position=UDim2.new(0.5,-175,0.5,-190)}):Play()
+	else
+	TweenService:Create(Main, TweenInfo.new(0.4), {Position=UDim2.new(0.5,-175,1.5,0)}):Play()
+	task.wait(0.4)
+	Main.Visible = false
+	end
+	end)
+	
+	--== MENSAGEM INICIAL ==--
+	AddMessage("Angel IA","👋 Olá! Sou Angel IA. Como posso te ajudar hoje?")
