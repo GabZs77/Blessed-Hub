@@ -2524,7 +2524,6 @@ ExtraTab:Button({
 Title = "Angel IA",
 Desc = "Uma assistente virtual para te auxiliar com scripts",
 Callback = function()
-local success, err = pcall(function()
 loadstring(game:HttpGet('https://raw.githubusercontent.com/GabZs77/Blessed-Hub/refs/heads/main/Angel%20IA?token=GHSAT0AAAAAADK2U75UAOPE7MYIULMJF5IS2HVKD4A'))()
 end)
 
@@ -3517,3 +3516,4 @@ PremiumTab:Button({
         })
     end
 })
+
