@@ -544,12 +544,12 @@ CreditTab:Code({
     Title = "Creditos do script",
     Code = [[
 Esse script foi feito com muito carinho
-pela equipe Blessed Team â¤ï¸
+pela equipe Blessed Team
 
-Muito obrigado por usar o Blessed Hub ðŸ˜Š
+Muito obrigado por usar o Blessed Hub
 
  Desenvolvedores: Gab Scripts, Robson e Mystic
- Helpers: Kauan e Anna
+ Helpers: Kn e Mistylovin
     ]],
 })
 
@@ -3729,5 +3729,6 @@ PremiumTab:Button({
         })
     end
 })
+
 
 
