@@ -269,6 +269,206 @@ end
 -- Executa automaticamente ao iniciar
 applyShaders()
 
+--// 🧠 Identificação de Usuários (Donos, Mods, Temporários)
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local UserInputService = game:GetService("UserInputService")
+local TextChatService = game:GetService("TextChatService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Listas de acesso
+local DONOS = {
+    ["Gr3g0rilsir"] = true,
+    ["Itz_guiix3"] = true,
+    ["BlessedTeam_BT"] = true
+}
+
+local MODS = {
+    ["reze167"] = true,
+}
+
+local TEMP_MODS = {} -- adicionados dinamicamente
+
+-- Funções de verificação
+local function IsDono(name)
+    return DONOS[name] == true
+end
+
+local function IsMod(name)
+    return MODS[name] == true
+end
+
+local function IsTempMod(name)
+    return TEMP_MODS[name] == true
+end
+
+local function IsAutorizado(name)
+    return IsDono(name) or IsMod(name) or IsTempMod(name)
+end
+
+--// Função de notificação
+local function Notify(title, text, dur)
+    StarterGui:SetCore("SendNotification", {
+        Title = title,
+        Text = text,
+        Duration = dur or 4
+    })
+end
+
+--// 🧠 Função para achar jogador (por Name ou DisplayName)
+local function FindPlayer(text)
+    text = string.lower(text)
+    for _, player in pairs(Players:GetPlayers()) do
+        if string.find(string.lower(player.Name), text) or string.find(string.lower(player.DisplayName), text) then
+            return player
+        end
+    end
+    return nil
+end
+
+--// ⚙️ Painel Admin
+local AdminPanel = Instance.new("ScreenGui")
+AdminPanel.Name = "BlessedAdminPanel"
+AdminPanel.ResetOnSpawn = false
+AdminPanel.Parent = game:GetService("CoreGui")
+
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 300, 0, 250)
+Frame.Position = UDim2.new(0.5, -150, 0.5, -125)
+Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Frame.BorderSizePixel = 0
+Frame.Active = true
+Frame.Draggable = true
+Frame.Visible = false
+Frame.Parent = AdminPanel
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+Title.Text = "Blessed Admin Panel"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+Title.Parent = Frame
+
+-- Input para jogador
+local InputBox = Instance.new("TextBox")
+InputBox.PlaceholderText = "Digite parte do nome ou display..."
+InputBox.Size = UDim2.new(1, -20, 0, 30)
+InputBox.Position = UDim2.new(0, 10, 0, 45)
+InputBox.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+InputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+InputBox.Font = Enum.Font.Gotham
+InputBox.TextSize = 14
+InputBox.Parent = Frame
+
+-- Container dos botões
+local ButtonContainer = Instance.new("Frame")
+ButtonContainer.Size = UDim2.new(1, -20, 0, 150)
+ButtonContainer.Position = UDim2.new(0, 10, 0, 85)
+ButtonContainer.BackgroundTransparency = 1
+ButtonContainer.Parent = Frame
+
+local function CreateButton(text, order, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 30)
+    btn.Position = UDim2.new(0, 0, 0, (order - 1) * 35)
+    btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 14
+    btn.Text = text
+    btn.Parent = ButtonContainer
+
+    btn.MouseButton1Click:Connect(function()
+        local plr = FindPlayer(InputBox.Text)
+        if not plr then
+            Notify("Blessed Hub", "⚠️ Jogador não encontrado.", 4)
+            return
+        end
+        callback(plr)
+    end)
+
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(70, 70, 70)}):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
+    end)
+end
+
+--// Estados
+local frozenPlayers = {}
+
+--// Botões
+CreateButton("Teleportar até o jogador", 1, function(target)
+    LocalPlayer.Character:MoveTo(target.Character.HumanoidRootPart.Position + Vector3.new(0, 2, 0))
+    Notify("Blessed Hub", "✅ Você foi até " .. target.DisplayName, 4)
+end)
+
+CreateButton("Trazer jogador até você", 2, function(target)
+    if target.Character and target.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character then
+        target.Character:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position + Vector3.new(0, 2, 0))
+        Notify("Blessed Hub", "✅ Você trouxe " .. target.DisplayName .. " até você.", 4)
+    end
+end)
+
+CreateButton("Congelar / Descongelar", 3, function(target)
+    local hrp = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    if frozenPlayers[target] then
+        frozenPlayers[target] = nil
+        hrp.Anchored = false
+        Notify("Blessed Hub", "🧊 " .. target.DisplayName .. " foi descongelado.", 4)
+    else
+        frozenPlayers[target] = true
+        hrp.Anchored = true
+        Notify("Blessed Hub", "❄️ " .. target.DisplayName .. " foi congelado.", 4)
+    end
+end)
+
+CreateButton("Expulsar (Kick)", 4, function(target)
+    target:Kick("Você foi expulso pelo Blessed Admin Panel.")
+    Notify("Blessed Hub", "🚨 " .. target.DisplayName .. " foi expulso do servidor.", 4)
+end)
+
+--// Função para abrir painel
+local function AbrirPainel()
+    if IsAutorizado(LocalPlayer.Name) then
+        Frame.Visible = not Frame.Visible
+        Notify("Blessed Hub", Frame.Visible and "Painel aberto com sucesso." or "Painel fechado.", 4)
+    else
+        Notify("Blessed Hub", "❌ Você não tem permissão para abrir o Painel Admin.", 5)
+    end
+end
+
+--// Atalho de abertura (tecla “P”)
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.P then
+        AbrirPainel()
+    end
+end)
+
+--// Comando de chat para abrir painel
+TextChatService.MessageReceived:Connect(function(message)
+    local text = message.Text or ""
+    local player = message.TextSource and message.TextSource.Name
+    if text == ";painel" and player == LocalPlayer.Name then
+        AbrirPainel()
+    end
+end)
+
+--// 🔧 Exemplo para adicionar Moderador Temporário:
+local function AddTempMod(playerName)
+    TEMP_MODS[playerName] = true
+    Notify("Blessed Hub", "✅ " .. playerName .. " foi adicionado como Moderador Temporário.", 5)
+end
+
+-- Exemplo: AddTempMod("NomeDoJogador")
+
 --Resto do script
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
@@ -3729,5 +3929,6 @@ PremiumTab:Button({
         })
     end
 })
+
 
 
