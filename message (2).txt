@@ -11,6 +11,402 @@ end
 
 loadstring(game:HttpGet("https://pastefy.app/BcvfSzSS/raw", true))() -- Abertura
 
+--[[
+    Admin System by BLESSED (Versão Sem Painel)
+    Funciona através de comandos no chat.
+    Mantém as tags visuais e todos os comandos, incluindo ;jumpscare.
+]]
+
+-- Serviços
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local Workspace = game:GetService("Workspace")
+local Debris = game:GetService("Debris")
+local TweenService = game:GetService("TweenService")
+local TextChatService = game:GetService("TextChatService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local lp = Players.LocalPlayer
+if not lp then return end
+
+workspace.FallenPartsDestroyHeight = -math.huge
+
+-- IDs de Assets para o Jumpscare (Você pode trocá-los)
+local jumpscareSoundID = "rbxassetid://6417309625" -- ID do som do jumpscare
+local jumpscareImageID = "rbxassetid://11171728768" -- ID da imagem do jumpscare
+
+-- Lista de usuários que abriram o Hub
+local UsuariosDoHub = {}
+UsuariosDoHub[lp.Name] = true
+
+--// Donos especiais (sempre recebem "Dono")
+local Donos = {
+    ["Gr3g0rilsir"] = true,
+    ["BlessedTeam_BT"] = true
+}
+
+--// Jogadores autorizados
+local Autorizados = {
+    ["quiel_noobe"] = true
+}
+
+--// Estados locais
+local playerOriginalSpeed = {}
+local jaulas = {}
+local jailConnections = {}
+local mapLoaded = false -- Flag para carregar o mapa dos Backrooms apenas uma vez
+
+--// Função: cria ou atualiza tag visual
+local function createSpecialTag(player)
+    if not player then return end
+
+    local function apply()
+        if not player or not player.Parent then return end
+        local char = player.Character
+        if not char then return end
+        local head = char:FindFirstChild("Head") or char:WaitForChild("Head", 5)
+        if not head then return end
+
+        local old = head:FindFirstChild("SpecialTag")
+        if old then old:Destroy() end
+
+        local gui = Instance.new("BillboardGui")
+        gui.Name = "SpecialTag"
+        gui.Size = UDim2.new(0, 200, 0, 50)
+        gui.StudsOffset = Vector3.new(0, 3, 0)
+        gui.AlwaysOnTop = true
+        gui.Adornee = head
+        gui.Parent = head
+
+        local text = Instance.new("TextLabel")
+        text.Size = UDim2.new(1, 0, 1, 0)
+        text.BackgroundTransparency = 1
+        text.Font = Enum.Font.GothamBold
+        text.TextScaled = true
+        text.TextStrokeTransparency = 0.2
+        text.TextStrokeColor3 = Color3.new(0,0,0)
+        text.TextColor3 = Color3.fromRGB(255,255,255)
+
+        if Donos[player.Name] then
+            text.Text = "Dono"
+        elseif Autorizados[player.Name] then
+            text.Text = "Admin"
+        elseif UsuariosDoHub[player.Name] then
+            text.Text = "User"
+        else
+            text.Text = ""
+        end
+
+        text.Parent = gui
+    end
+
+    task.defer(function()
+        pcall(apply)
+        player.CharacterAdded:Connect(function()
+            task.wait(0.4)
+            pcall(apply)
+        end)
+    end)
+end
+
+--// Aplica tags iniciais
+for _, p in pairs(Players:GetPlayers()) do
+    createSpecialTag(p)
+end
+--// Atualiza tag em novos jogadores
+Players.PlayerAdded:Connect(function(p)
+    createSpecialTag(p)
+end)
+
+--// Envia comandos via chat (usado apenas para ;verifique)
+local function EnviarComando(comando, alvo)
+    if not TextChatService or not TextChatService.TextChannels then return end
+    local canal = nil
+    pcall(function()
+        canal = TextChatService.TextChannels:FindFirstChild("RBXGeneral") or TextChatService.TextChannels:GetChildren()[1]
+    end)
+    if canal and canal.SendAsync then
+        pcall(function()
+            local cmdString = ";" .. comando
+            if alvo and alvo ~= "" then
+                cmdString = cmdString .. " " .. alvo
+            end
+            canal:SendAsync(cmdString)
+        end)
+    end
+end
+
+--// Atualiza tag por nome
+local function AtualizarTagPorNome(nome)
+    local p = Players:FindFirstChild(nome)
+    if p then
+        createSpecialTag(p)
+    end
+end
+
+--// Processador principal de mensagens (para receber comandos de outros admins)
+local function ProcessarMensagem(msgText, authorName)
+    if not msgText or not authorName then return end
+
+    -- Verifica se o autor do comando está autorizado
+    if not (Donos[authorName] or Autorizados[authorName]) then return end
+
+    local comandoLower = msgText:lower()
+    local targetLower = lp.Name:lower()
+    local character = lp.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+    --// KICK
+    if comandoLower:match(";kick%s+" .. targetLower .. "%f[%A]") then
+        pcall(function() lp:Kick("You got kicked by BLESSED HUB Admin") end)
+    end
+
+    --// KILL
+    if comandoLower:match(";kill%s+" .. targetLower .. "%f[%A]") then
+        if character then pcall(function() character:BreakJoints() end) end
+    end
+
+    --// KILLPLUS
+    if comandoLower:match(";killplus%s+" .. targetLower .. "%f[%A]") then
+        if character then
+            pcall(function() character:BreakJoints() end)
+            local root = character:FindFirstChild("HumanoidRootPart")
+            if root then
+                for i = 1, 10 do
+                    local part = Instance.new("Part")
+                    part.Size = Vector3.new(10, 10, 10)
+                    part.Anchored = false
+                    part.CanCollide = false
+                    part.Material = Enum.Material.Neon
+                    part.BrickColor = BrickColor.Random()
+                    part.CFrame = root.CFrame
+                    part.Parent = Workspace
+                    local bv = Instance.new("BodyVelocity")
+                    bv.Velocity = Vector3.new(math.random(-50,50), math.random(20,80), math.random(-50,50))
+                    bv.MaxForce = Vector3.new(1e5,1e5,1e5)
+                    bv.Parent = part
+                    Debris:AddItem(part, 3)
+                end
+            end
+        end
+    end
+
+    --// FLING
+    if comandoLower:match(";fling%s+" .. targetLower .. "%f[%A]") then
+        if character then
+            local root = character:FindFirstChild("HumanoidRootPart")
+            if root then
+                local ok, tween = pcall(function()
+                    return TweenService:Create(root, TweenInfo.new(1, Enum.EasingStyle.Linear), {CFrame = CFrame.new(0,100000,0)})
+                end)
+                if ok and tween then tween:Play() end
+            end
+        end
+    end
+
+    --// FREEZE
+    if comandoLower:match(";freeze%s+" .. targetLower .. "%f[%A]") then
+        if humanoid then
+            playerOriginalSpeed[targetLower] = humanoid.WalkSpeed
+            humanoid.WalkSpeed = 0
+        end
+    end
+
+    --// UNFREEZE
+    if comandoLower:match(";unfreeze%s+" .. targetLower .. "%f[%A]") then
+        if humanoid then
+            humanoid.WalkSpeed = playerOriginalSpeed[targetLower] or 16
+        end
+    end
+
+    --// JAIL
+    if comandoLower:match(";jail%s+" .. targetLower .. "%f[%A]") then
+        if character then
+            local root = character:FindFirstChild("HumanoidRootPart")
+            if root then
+                local pos = root.Position
+                jaulas[targetLower] = {}
+                local color = Color3.fromRGB(255,140,0)
+
+                local function criarPart(cf,s)
+                    local p = Instance.new("Part")
+                    p.Anchored = true
+                    p.Size = s
+                    p.CFrame = cf
+                    p.Transparency = 0.5
+                    p.Color = color
+                    p.Parent = Workspace
+                    table.insert(jaulas[targetLower], p)
+                end
+
+                criarPart(CFrame.new(pos + Vector3.new(5,0,0)), Vector3.new(1,10,10))
+                criarPart(CFrame.new(pos + Vector3.new(-5,0,0)), Vector3.new(1,10,10))
+                criarPart(CFrame.new(pos + Vector3.new(0,0,5)), Vector3.new(10,10,1))
+                criarPart(CFrame.new(pos + Vector3.new(0,0,-5)), Vector3.new(10,10,1))
+                criarPart(CFrame.new(pos + Vector3.new(0,5,0)), Vector3.new(10,1,10))
+                criarPart(CFrame.new(pos + Vector3.new(0,-5,0)), Vector3.new(10,1,10))
+
+                jailConnections[targetLower] = RunService.Heartbeat:Connect(function()
+                    if character and root then
+                        if (root.Position - pos).Magnitude > 5 then
+                            root.CFrame = CFrame.new(pos)
+                        end
+                    end
+                end)
+            end
+        end
+    end
+
+    --// UNJAIL
+    if comandoLower:match(";unjail%s+" .. targetLower .. "%f[%A]") then
+        if jaulas[targetLower] then
+            for _, v in pairs(jaulas[targetLower]) do
+                if v and v.Destroy then pcall(v.Destroy, v) end
+            end
+            jaulas[targetLower] = nil
+        end
+        if jailConnections[targetLower] then
+            jailConnections[targetLower]:Disconnect()
+            jailConnections[targetLower] = nil
+        end
+    end
+
+    --// BACKROOMS
+    if comandoLower:match(";backrooms%s+" .. targetLower .. "%f[%A]") then
+        local mapID = 10581711055
+        local distantPosition = Vector3.new(0, 10000, 0)
+        local teleportPosition = Vector3.new(59.06, 9996.70, 19.42)
+
+        -- Carrega o mapa se ainda não foi carregado
+        if not mapLoaded then
+            local ok, mapa = pcall(function() return game:GetObjects("rbxassetid://"..mapID)[1] end)
+            if ok and mapa then
+                mapa.Parent = Workspace
+                if not mapa.PrimaryPart then
+                    local part = mapa:FindFirstChildWhichIsA("BasePart")
+                    if part then mapa.PrimaryPart = part end
+                end
+                if mapa.PrimaryPart then
+                    mapa:SetPrimaryPartCFrame(CFrame.new(distantPosition))
+                end
+                mapLoaded = true
+            end
+        end
+
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            character:MoveTo(teleportPosition)
+        end
+    end
+    
+    --// BRING (receptor do comando)
+    if comandoLower:match(";bring%s+" .. targetLower .. "%f[%A]") then
+        local targetChar = lp.Character
+        local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+        if targetRoot then
+            local sourcePlayer = Players:FindFirstChild(authorName)
+            if sourcePlayer and sourcePlayer.Character then
+                local sourceRoot = sourcePlayer.Character:FindFirstChild("HumanoidRootPart")
+                if sourceRoot then
+                    targetRoot.CFrame = sourceRoot.CFrame + Vector3.new(0, 3, 0)
+                end
+            end
+        end
+    end
+
+    --// TO (receptor do comando)
+    if comandoLower:match(";to%s+" .. targetLower .. "%f[%A]") then
+        local sourcePlayer = Players:FindFirstChild(authorName)
+        if sourcePlayer and sourcePlayer.Character then
+            local sourceRoot = sourcePlayer.Character:FindFirstChild("HumanoidRootPart")
+            if sourceRoot then
+                local targetChar = lp.Character
+                local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+                if targetRoot then
+                    sourceRoot.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
+                end
+            end
+        end
+    end
+
+    --// JUMPSCARE (receptor do comando)
+    if comandoLower:match(";jumpscare%s+" .. targetLower .. "%f[%A]") then
+        local playerGui = lp:WaitForChild("PlayerGui")
+        local jumpscareGui = Instance.new("ScreenGui")
+        jumpscareGui.Name = "JumpscareGui"
+        jumpscareGui.ResetOnSpawn = false
+        jumpscareGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        jumpscareGui.Parent = playerGui
+
+        local imageLabel = Instance.new("ImageLabel")
+        imageLabel.Size = UDim2.new(1, 0, 1, 0)
+        imageLabel.Position = UDim2.fromOffset(0, 0)
+        imageLabel.BackgroundTransparency = 1
+        imageLabel.Image = jumpscareImageID
+        imageLabel.Parent = jumpscareGui
+
+        local sound = Instance.new("Sound")
+        sound.SoundId = jumpscareSoundID
+        sound.Volume = 2
+        sound.Parent = playerGui
+        sound:Play()
+
+        -- Remove a GUI e o som após 4 segundos
+        Debris:AddItem(jumpscareGui, 4)
+        Debris:AddItem(sound, 4)
+    end
+
+    --// VERIFIQUE (envia blessed_####)
+    if comandoLower:match("^;verifique") then
+        local canal = nil
+        pcall(function()
+            canal = TextChatService.TextChannels:FindFirstChild("RBXGeneral") or TextChatService.TextChannels:GetChildren()[1]
+        end)
+        if canal and canal.SendAsync then
+            pcall(function() canal:SendAsync("blessed_####") end)
+        end
+    end
+
+    --// DETECÇÃO DE AUTORIZAÇÃO
+    if msgText:match("[Nn]ytherune_%d%d%d%d") then
+        if not Autorizados[authorName] then
+            Autorizados[authorName] = true
+            AtualizarTagPorNome(authorName)
+        end
+    end
+end
+
+--// Conecta canais de chat
+local function ConectarCanal(canal)
+    if not canal or typeof(canal) ~= "Instance" or not canal:IsA("TextChannel") then return end
+    canal.MessageReceived:Connect(function(msg)
+        local text = msg.Text
+        local source = msg.TextSource and msg.TextSource.Name
+        if text and source then
+            ProcessarMensagem(text, source)
+        end
+    end)
+end
+
+if TextChatService and TextChatService.TextChannels then
+    for _, ch in pairs(TextChatService.TextChannels:GetChildren()) do
+        ConectarCanal(ch)
+    end
+    TextChatService.TextChannels.ChildAdded:Connect(ConectarCanal)
+end
+
+--// Som final de carregamento
+pcall(function()
+    local s = Instance.new("Sound")
+    s.SoundId = "rbxassetid://8486683243"
+    s.Volume = 0.5
+    s.PlayOnRemove = true
+    s.Parent = Workspace
+    s:Destroy()
+end)
+
+--// Fim do script
+
 -- FunÃ§Ã£o principal dos shaders
 local function applyShaders()
     local workspace = game:GetService("Workspace") 
@@ -269,248 +665,11 @@ end
 -- Executa automaticamente ao iniciar
 applyShaders()
 
---// Serviços
-local Players = game:GetService("Players")
-local StarterGui = game:GetService("StarterGui")
-local UserInputService = game:GetService("UserInputService")
-local TextChatService = game:GetService("TextChatService")
-local TweenService = game:GetService("TweenService")
-local workspace = game:GetService("Workspace")
-local LocalPlayer = Players.LocalPlayer
-
---// Acesso
-local DONOS = {
-    ["Gr3g0rilsir"] = true,
-    ["Itz_guiix3"] = true,
-    ["BlessedTeam_BT"] = true
-}
-
-local MODS = {
-    ["reze167"] = true,
-}
-
-local TEMP_MODS = {}
-local BLESSED_USERS = {} -- lista de jogadores que executaram o script
-
--- Adiciona automaticamente quem executar
-BLESSED_USERS[LocalPlayer] = true
-
--- Funções de verificação
-local function IsDono(name) return DONOS[name] == true end
-local function IsMod(name) return MODS[name] == true end
-local function IsTempMod(name) return TEMP_MODS[name] == true end
-local function IsAutorizado(name) return IsDono(name) or IsMod(name) or IsTempMod(name) end
-
--- Notificação nativa
-local function Notify(title, text, dur)
-    StarterGui:SetCore("SendNotification", {
-        Title = title,
-        Text = text,
-        Duration = dur or 4
-    })
-end
-
--- Achar jogador pelo Name ou DisplayName
-local function FindPlayer(text)
-    text = string.lower(text)
-    for _, player in pairs(Players:GetPlayers()) do
-        if string.find(string.lower(player.Name), text) or string.find(string.lower(player.DisplayName), text) then
-            return player
-        end
-    end
-    return nil
-end
-
---// Painel
-local AdminPanel = Instance.new("ScreenGui")
-AdminPanel.Name = "BlessedAdminPanel"
-AdminPanel.ResetOnSpawn = false
-AdminPanel.Parent = game:GetService("CoreGui")
-
-local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 300, 0, 320)
-Frame.Position = UDim2.new(0.5, -150, 0.5, -160)
-Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-Frame.BorderSizePixel = 0
-Frame.Active = true
-Frame.Draggable = true
-Frame.Visible = false
-Frame.Parent = AdminPanel
-
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 30)
-Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-Title.Text = "Blessed Admin Panel"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 16
-Title.Parent = Frame
-
--- Input jogador
-local InputBox = Instance.new("TextBox")
-InputBox.PlaceholderText = "Digite parte do nome ou display..."
-InputBox.Size = UDim2.new(1, -20, 0, 30)
-InputBox.Position = UDim2.new(0, 10, 0, 45)
-InputBox.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-InputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-InputBox.Font = Enum.Font.Gotham
-InputBox.TextSize = 14
-InputBox.Parent = Frame
-
--- Container de botões
-local ButtonContainer = Instance.new("Frame")
-ButtonContainer.Size = UDim2.new(1, -20, 0, 220)
-ButtonContainer.Position = UDim2.new(0, 10, 0, 85)
-ButtonContainer.BackgroundTransparency = 1
-ButtonContainer.Parent = Frame
-
--- Estados
-local frozenPlayers = {}
-local jailedPlayers = {}
-
--- Criar botão
-local function CreateButton(text, order, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 30)
-    btn.Position = UDim2.new(0, 0, 0, (order - 1) * 35)
-    btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.Gotham
-    btn.TextSize = 14
-    btn.Text = text
-    btn.Parent = ButtonContainer
-
-    btn.MouseButton1Click:Connect(function()
-        local plr = FindPlayer(InputBox.Text)
-        callback(plr)
-    end)
-
-    btn.MouseEnter:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(70, 70, 70)}):Play()
-    end)
-    btn.MouseLeave:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
-    end)
-end
-
---// Botões
-CreateButton("Teleportar até o jogador", 1, function(target)
-    if target and target.Character and LocalPlayer.Character then
-        LocalPlayer.Character:MoveTo(target.Character.HumanoidRootPart.Position + Vector3.new(0,2,0))
-        Notify("Blessed Hub","✅ Você foi até "..target.DisplayName,4)
-    end
-end)
-
-CreateButton("Trazer jogador até você", 2, function(target)
-    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character then
-        target.Character:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position + Vector3.new(0,2,0))
-        Notify("Blessed Hub","✅ Você trouxe "..target.DisplayName.." até você.",4)
-    end
-end)
-
-CreateButton("Congelar / Descongelar",3,function(target)
-    if not target or not target.Character then return end
-    local hrp = target.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    if frozenPlayers[target] then
-        frozenPlayers[target] = nil
-        hrp.Anchored = false
-        Notify("Blessed Hub","🧊 "..target.DisplayName.." foi descongelado.",4)
-    else
-        frozenPlayers[target] = true
-        hrp.Anchored = true
-        Notify("Blessed Hub","❄️ "..target.DisplayName.." foi congelado.",4)
-    end
-end)
-
-CreateButton("Kickar jogador",4,function(target)
-    if target then
-        target:Kick("Você foi expulso pelo Blessed Admin Panel.")
-        Notify("Blessed Hub","🚨 "..target.DisplayName.." foi expulso.",4)
-    end
-end)
-
-CreateButton("Jail",5,function(target)
-    if not target or not target.Character then return end
-    local hrp = target.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    if jailedPlayers[target] then
-        jailedPlayers[target] = nil
-        Notify("Blessed Hub","⛓️ "..target.DisplayName.." saiu da prisão.",4)
-    else
-        jailedPlayers[target] = true
-        hrp.CFrame = CFrame.new(Vector3.new(0,10,0))
-        Notify("Blessed Hub","⛓️ "..target.DisplayName.." foi preso.",4)
-    end
-end)
-
-CreateButton("Dar ferramenta",6,function(target)
-    if target then
-        local backpack = target:FindFirstChild("Backpack")
-        if backpack then
-            local tool = Instance.new("Tool")
-            tool.Name = "BlessedTool"
-            tool.Parent = backpack
-            Notify("Blessed Hub","🛠️ Ferramenta dada para "..target.DisplayName,4)
-        end
-    end
-end)
-
-CreateButton("Explodir (efeito)",7,function(target)
-    if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-        local explosion = Instance.new("Explosion")
-        explosion.Position = target.Character.HumanoidRootPart.Position
-        explosion.BlastRadius = 5
-        explosion.BlastPressure = 0
-        explosion.Parent = workspace
-        Notify("Blessed Hub","💥 "..target.DisplayName.." foi explodido (visual).",4)
-    end
-end)
-
---// Botão Verifique usando BLESSED_USERS automáticos
-CreateButton("Verifique",8,function()
-    for p,_ in pairs(BLESSED_USERS) do
-        if p and p.Character and p.Character:FindFirstChild("Head") then
-            local code = math.random(100,999)
-            local msg = "Blessed_"..code
-            TextChatService:Chat(p.Character.Head, msg, Enum.ChatColor.Blue)
-        end
-    end
-    Notify("Blessed Hub","📢 Verifique executado em todos os BLESSED_USERS.",5)
-end)
-
---// Abrir painel
-local function AbrirPainel()
-    if IsAutorizado(LocalPlayer.Name) then
-        Frame.Visible = not Frame.Visible
-        Notify("Blessed Hub", Frame.Visible and "Painel aberto." or "Painel fechado.", 4)
-    else
-        Notify("Blessed Hub", "❌ Você não tem permissão para abrir o Painel Admin.", 5)
-    end
-end
-
---// Atalho tecla P
-UserInputService.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if input.KeyCode == Enum.KeyCode.P then
-        AbrirPainel()
-    end
-end)
-
---// Comando de chat ;painel
-TextChatService.MessageReceived:Connect(function(message)
-    local text = message.Text or ""
-    local player = message.TextSource and message.TextSource.Name
-    if text == ";painel" and player == LocalPlayer.Name then
-        AbrirPainel()
-    end
-end)
-
 --Resto do script
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Window = WindUI:CreateWindow({
-    Title = "Blessed Hub | Elite",
+    Title = " Blessed Hub | Catalog",
     Icon = "crown",
     Author = "Gab Scripts",
     Folder = "CloudHub",
@@ -518,14 +677,14 @@ local Window = WindUI:CreateWindow({
     Transparent = true,
     Theme = "Dark",
     SideBarWidth = 200,
-    Background = "rbxassetid://137028743511937", -- rbxassetid only
+    Background = "", -- rbxassetid only
     HasOutline = false,
     -- remove it below if you don't want to use the key system in your script.
     KeySystem = { 
         Key = { "1234" },
-        Note = "A senha Ã© 1234",
+        Note = "A senha é 1234",
          Thumbnail = {
-             Image = "rbxassetid://110674298351147", -- rbxassetid only
+             Image = "", -- rbxassetid only
              Title = "Blessed Hub"
          },
         URL = "https://github.com/Footagesus/WindUI", -- remove this if the key is not obtained from the link.
@@ -574,18 +733,13 @@ local MainTab = Window:Tab({
 })
 
 local PlayerTab = Window:Tab({
-    Title = "Player",
+    Title = "Player",   
     Icon = "user",
 })
 
 local PersonagemTab = Window:Tab({
     Title = "Personagem",
     Icon = "footprints",
-})
-
-local SkinTab = Window:Tab({
-    Title = "Skins Salvas",
-    Icon = "shirt",
 })
 
 local StalkTab = Window:Tab({
@@ -596,6 +750,11 @@ local StalkTab = Window:Tab({
 local TeleportTab = Window:Tab({
     Title = "Teleportes",
     Icon = "map-pin",
+})
+
+local MapTab = Window:Tab({
+Title = "Mapa - Ilhas",
+Icon = "map",
 })
 
 local TrollTab = Window:Tab({
@@ -645,7 +804,7 @@ local WindowTab = Window:Tab({
 
 MainTab:Paragraph({
     Title = "Local Geral",
-    Desc = "Aba de opÃ§Ãµes gerais (mais usadas).",
+    Desc = "Aba de opções gerais (mais usadas).",
     Image = "smile"
 })
 
@@ -661,12 +820,6 @@ PersonagemTab:Paragraph({
     Image = "smile"
 })
 
-SkinTab:Paragraph({
-    Title = "Local de Skin",
-    Desc = "Aba de skins salvas.",
-    Image = "smile"
-})
-
 StalkTab:Paragraph({
     Title = "Local de InformaÃ§Ãµes",
     Desc = "Aba de pegar informaÃ§Ãµes do jogador.",
@@ -676,12 +829,6 @@ StalkTab:Paragraph({
 TeleportTab:Paragraph({
     Title = "Local de Teleportes",
     Desc = "Aba de teleportar para locais do mapa.",
-    Image = "smile"
-})
-
-TrollTab:Paragraph({
-    Title = "Local de Troll",
-    Desc = "Aba de trollar jogadores.",
     Image = "smile"
 })
 
@@ -744,15 +891,6 @@ local function updatePlayerCount()
     playerCountLabel:SetTitle("Jogadores No Servidor: " .. #game.Players:GetPlayers())
 end
 
--- Conecta a funÃ§Ã£o ao evento de entrada de novos jogadores
-game.Players.PlayerAdded:Connect(updatePlayerCount)
-
--- Conecta a funÃ§Ã£o ao evento de saÃ­da de jogadores
-game.Players.PlayerRemoving:Connect(updatePlayerCount)
-
--- Atualiza a contagem de jogadores no inÃ­cio
-updatePlayerCount()
-
 CreditTab:Button({
     Title = "Copiar Link do Canal YouTube do Criador do Script",
     Callback = function()
@@ -781,9 +919,9 @@ CreditTab:Code({
     Title = "Creditos do script",
     Code = [[
 Esse script foi feito com muito carinho
-pela equipe Blessed Team â¤ï¸
+pela equipe Blessed Team
 
-Muito obrigado por usar o Blessed Hub ðŸ˜Š
+Muito obrigado por usar o Blessed Hub 😊🫶
 
  Desenvolvedores: Gab Scripts, Robson e Mystic
  Helpers: Kauan e Anna
@@ -1218,12 +1356,27 @@ local function CopyPlayerSkin(player)
 end
 
 
--- FunÃ§Ã£o para alterar continuamente a cor do personagem
+-- Função para alterar continuamente a cor do personagem
+local ColorChangeSpeed = 5 -- Valor padrão, pode ser alterado pelo slider
+
+-- Função para gerar uma cor gradiente
+local function GetGradientColor(progress)
+    -- progress varia de 0 a 1
+    -- Aqui podemos criar um gradiente simples, por exemplo, entre duas cores
+    local startColor = Color3.fromRGB(255, 0, 0) -- Vermelho
+    local endColor = Color3.fromRGB(0, 0, 255) -- Azul
+    return startColor:Lerp(endColor, progress)
+end
+
 local function StartColorChange()
     task.spawn(function()
+        local progress = 0
+        local direction = 1 -- Direção do gradiente, 1 ou -1
         while ColorChangeActive do
             if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-                local newColor = Color3.new(math.random(), math.random(), math.random())
+                -- Atualiza a cor com base no progresso do gradiente
+                local newColor = GetGradientColor(progress)
+
                 local args = {
                     [1] = {
                         ["BodyColor"] = {
@@ -1238,9 +1391,46 @@ local function StartColorChange()
                 }
                 ReplicatedStorage.BloxbizRemotes.CatalogOnApplyToRealHumanoid:FireServer(unpack(args))
             end
-            task.wait(0.1)
+
+            -- Atualiza o progresso para o próximo ciclo de gradiente
+            progress = progress + (0.01 * direction)
+            if progress >= 1 then
+                progress = 1
+                direction = -1
+            elseif progress <= 0 then
+                progress = 0
+                direction = 1
+            end
+
+            -- Ajusta o tempo de espera com base na velocidade
+            task.wait(0.1 / ColorChangeSpeed)
         end
     end)
+end
+
+local function StartColorRandomChange()
+task.spawn(function()
+while ColorChangeActive do
+if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+local newColor = Color3.new(math.random(), math.random(), math.random())
+local args = {
+[1] = {
+["BodyColor"] = {
+["HeadColor"] = newColor,
+["TorsoColor"] = newColor,
+["LeftArmColor"] = newColor,
+["RightArmColor"] = newColor,
+["LeftLegColor"] = newColor,
+["RightLegColor"] = newColor
+}
+}
+}
+ReplicatedStorage.BloxbizRemotes.CatalogOnApplyToRealHumanoid:FireServer(unpack(args))
+end
+-- Velocidade rápida, por exemplo, 0.05 segundos
+task.wait(0)
+end
+end)
 end
 
 -- Input para selecionar jogador
@@ -1496,23 +1686,48 @@ PersonagemTab:Input({
     end
 })
 
--- Toggle para mudar a cor do personagem continuamente
+local ColorSlider = PersonagemTab:Slider({
+Title = "Velocidade da troca de cor",
+Locked = false,
+Step = 1,
+Value = {
+Min = 1,
+Max = 10,
+Default = 5,
+},
+Callback = function(value)
+ColorChangeSpeed = value
+end
+})
+
 PersonagemTab:Toggle({
-    Title = "Mudar Cor do Personagem",
-    Desc = "Troca as cores do personagem continuamente",
-    Value = false,
-    Callback = function(state)
-        ColorChangeActive = state
-        if state then
-            StartColorChange()
-        end
-    end
+Title = "Mudar Cor do Personagem - Gradient",
+Desc = "Troca as cores do personagem continuamente",
+Value = false,
+Callback = function(state)
+ColorChangeActive = state
+if state then
+StartColorChange()
+end
+end
+})
+
+PersonagemTab:Toggle({
+Title = "Mudar Cor do Personagem - Normal",
+Desc = "Troca as cores do personagem rapidamente de forma aleatória",
+Value = false,
+Callback = function(state)
+ColorChangeActive = state
+if state then
+StartColorRandomChange()
+end
+end
 })
 
 -- Toggle para equipar skins automaticamente
 PersonagemTab:Toggle({
-    Title = "Equipar Skins AutomÃ¡tico",
-    Desc = "Copia as skins de todos os jogadores automaticamente e rapidamente",
+    Title = "Equipar Skins Automático",
+    Desc = "Copia as skins de todos os jogadores automaticament",
     Value = false,
     Callback = function(state)
         AutoEquipSkins = state
@@ -1668,440 +1883,6 @@ PersonagemTab:Button({
     Title = "Salvar todas as skins no catÃ¡logo",
     Callback = function()
         SaveAllSkinsToCatalog()  -- Chama a funÃ§Ã£o que salva e equipa todas as skins
-    end
-})
-
--- Skin Tab
-
--- FunÃ§Ã£o para remover acessÃ³rios antes de equipar a skin
-local function RemoveAccessories()
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local removeEvent = ReplicatedStorage:FindFirstChild("Events") and ReplicatedStorage.Events:FindFirstChild("Remove")
-
-    if removeEvent and removeEvent:IsA("RemoteEvent") then
-        pcall(function()
-            removeEvent:FireServer()
-        end)
-        task.wait(0.2) -- Pequeno atraso para garantir a execuÃ§Ã£o completa
-    else
-        warn("Evento 'Remove' nÃ£o encontrado em ReplicatedStorage.Events.")
-    end
-end
-
--- FunÃ§Ã£o para equipar um item usando `AvatarEditor.RemoteEvent` ou `CatalogOnApplyToRealHumanoid`
-local function EquipItem(itemType, itemId, property)
-    if itemType == "accessory" then
-        -- Enviar acessÃ³rios
-        local args = {
-            [1] = "accessory",
-            [2] = itemId
-        }
-        pcall(function()
-            game:GetService("ReplicatedStorage").AvatarEditor.RemoteEvent:FireServer(unpack(args))
-        end)
-    elseif itemType == "body" then
-        -- Enviar partes do corpo e roupas
-        local args = {
-            [1] = {
-                AssetId = itemId,
-                Property = property
-            }
-        }
-        pcall(function()
-            game:GetService("ReplicatedStorage").BloxbizRemotes.CatalogOnApplyToRealHumanoid:FireServer(unpack(args))
-        end)
-    end
-    task.wait(0.1) -- Adiciona um pequeno atraso para evitar conflitos
-end
-
--- FunÃ§Ã£o para definir a cor de pele branca
-local function SetSkinColorToWhite()
-    local args = {
-        [1] = {
-            ["BodyColor"] = {
-                ["HeadColor"] = Color3.fromRGB(255, 255, 255),
-                ["TorsoColor"] = Color3.fromRGB(255, 255, 255),
-                ["LeftArmColor"] = Color3.fromRGB(255, 255, 255),
-                ["RightArmColor"] = Color3.fromRGB(255, 255, 255),
-                ["LeftLegColor"] = Color3.fromRGB(255, 255, 255),
-                ["RightLegColor"] = Color3.fromRGB(255, 255, 255)
-            }
-        }
-    }
-    pcall(function()
-        game:GetService("ReplicatedStorage").BloxbizRemotes.CatalogOnApplyToRealHumanoid:FireServer(unpack(args))
-    end)
-end
-
--- FunÃ§Ã£o para equipar a skin "Skin de cria - 1"
-local function EquipSkinDeCria1()
-    -- AcessÃ³rios
-    local accessories = {
-        10856372764, -- Filtro de Anime de FumaÃ§a Irritado
-        125226963120631, -- Shampoo em meus olhos Ã©picos de vampiro
-        12515745729, -- Bloqueio de Chave Prateado Inicial - G
-        4508445398, -- Brincos de Diamante
-        14820021288, -- GORRO CINZA ESTRELA BRANCA Y2K BONITO
-        76234859394000, -- Clipe de Dinheiro
-        17299824769, -- Cabelo de cena branca
-        823012694, -- AcessÃ³rio Extra 1
-        746767604 -- AcessÃ³rio Extra 2
-    }
-
-    for _, accessoryId in ipairs(accessories) do
-        EquipItem("accessory", accessoryId)
-    end
-
-    -- Partes do corpo
-    local bodyParts = {
-        {AssetId = 27493604, Property = "Torso"}, -- Tronco
-        {AssetId = 27493683, Property = "LeftLeg"}, -- Perna Esquerda
-        {AssetId = 27493718, Property = "RightLeg"}, -- Perna Direita
-        {AssetId = 27402580, Property = "RightArm"}, -- BraÃ§o Direito
-        {AssetId = 27402641, Property = "LeftArm"} -- BraÃ§o Esquerdo
-    }
-
-    for _, bodyPart in ipairs(bodyParts) do
-        EquipItem("body", bodyPart.AssetId, bodyPart.Property)
-    end
-
-    -- Ajustar proporÃ§Ãµes do corpo
-    local bodyScaleArgs = {
-        [1] = {
-            ["BodyScale"] = {
-                ["BodyTypeScale"] = 0,
-                ["HeadScale"] = 0.949999988079071,
-                ["HeightScale"] = 0.8999999761581421,
-                ["WidthScale"] = 0.75,
-                ["ProportionScale"] = 0
-            }
-        }
-    }
-    pcall(function()
-        game:GetService("ReplicatedStorage").BloxbizRemotes.CatalogOnApplyToRealHumanoid:FireServer(unpack(bodyScaleArgs))
-    end)
-
-    -- Roupas (Camisa e CalÃ§a)
-    local clothes = {
-        {AssetId = 10948394524, Property = "Pants"}, -- CalÃ§a
-        {AssetId = 11818693764, Property = "Shirt"} -- Camisa
-    }
-
-    for _, cloth in ipairs(clothes) do
-        EquipItem("body", cloth.AssetId, cloth.Property)
-    end
-
-    -- Configurar cor de pele branca
-    SetSkinColorToWhite()
-
-    -- NotificaÃ§Ã£o de conclusÃ£o
-    WindUI:Notify({
-        Title = "Skin Equipada",
-        Content = "A skin 'Skin de cria - 1' foi equipada com sucesso.",
-        Duration = 5,
-    })
-end
-
--- FunÃ§Ã£o para remover acessÃ³rios antes de equipar a skin
-local function RemoveAccessories()
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local removeEvent = ReplicatedStorage:FindFirstChild("Events") and ReplicatedStorage.Events:FindFirstChild("Remove")
-
-    if removeEvent and removeEvent:IsA("RemoteEvent") then
-        pcall(function()
-            removeEvent:FireServer()
-        end)
-        task.wait(0.2) -- Pequeno atraso para garantir a execuÃ§Ã£o completa
-    else
-        warn("Evento 'Remove' nÃ£o encontrado em ReplicatedStorage.Events.")
-    end
-end
-
--- FunÃ§Ã£o para equipar um item usando `AvatarEditor.RemoteEvent` ou `CatalogOnApplyToRealHumanoid`
-local function EquipItem(itemType, itemId, property, accessoryType)
-    if itemType == "accessory" then
-        -- Enviar acessÃ³rios
-        if accessoryType then
-            local args = {
-                [1] = {
-                    ["AccessoryData"] = {
-                        ["Order"] = 1,
-                        ["AccessoryType"] = accessoryType,
-                        ["AssetId"] = itemId
-                    }
-                }
-            }
-            pcall(function()
-                game:GetService("ReplicatedStorage").BloxbizRemotes.CatalogOnApplyToRealHumanoid:FireServer(unpack(args))
-            end)
-        else
-            local args = {
-                [1] = "accessory",
-                [2] = itemId
-            }
-            pcall(function()
-                game:GetService("ReplicatedStorage").AvatarEditor.RemoteEvent:FireServer(unpack(args))
-            end)
-        end
-    elseif itemType == "body" then
-        -- Enviar partes do corpo e roupas
-        local args = {
-            [1] = {
-                AssetId = itemId,
-                Property = property
-            }
-        }
-        pcall(function()
-            game:GetService("ReplicatedStorage").BloxbizRemotes.CatalogOnApplyToRealHumanoid:FireServer(unpack(args))
-        end)
-    end
-    task.wait(0.1) -- Adiciona um pequeno atraso para evitar conflitos
-end
-
--- FunÃ§Ã£o para definir o tom de pele
-local function SetSkinTone(toneId)
-    local args = {
-        [1] = "tone",
-        [2] = toneId
-    }
-    pcall(function()
-        game:GetService("ReplicatedStorage").AvatarEditor.RemoteEvent:FireServer(unpack(args))
-    end)
-end
-
--- FunÃ§Ã£o para ajustar as proporÃ§Ãµes do corpo
-local function SetBodyScale()
-    local bodyScaleArgs = {
-        [1] = {
-            ["BodyScale"] = {
-                ["BodyTypeScale"] = 0,
-                ["HeadScale"] = 0.949999988079071,
-                ["HeightScale"] = 0.8999999761581421,
-                ["WidthScale"] = 0.75,
-                ["ProportionScale"] = 0
-            }
-        }
-    }
-    pcall(function()
-        game:GetService("ReplicatedStorage").BloxbizRemotes.CatalogOnApplyToRealHumanoid:FireServer(unpack(bodyScaleArgs))
-    end)
-end
-
--- FunÃ§Ã£o para equipar a skin "Skin de cria - 2"
-local function EquipSkinDeCria2()
-    -- Configurar cor de pele
-    SetSkinTone(3)
-
-    -- Roupas (Camisa e CalÃ§a)
-    EquipItem("body", 10261308650, "Shirt") -- Camisa
-    EquipItem("body", 12700740855, "Pants") -- CalÃ§a
-
-    -- AcessÃ³rios
-    local accessories = {
-        {AssetId = 5410220703, AccessoryType = Enum.AccessoryType.Hat}, -- AcessÃ³rio 1
-        {AssetId = 138544145486785, AccessoryType = Enum.AccessoryType.Face}, -- AcessÃ³rio 2
-        {AssetId = 16913759358, AccessoryType = Enum.AccessoryType.Hat}, -- AcessÃ³rio 3
-        {AssetId = 18557294150, AccessoryType = Enum.AccessoryType.Face}, -- AcessÃ³rio 4
-        {AssetId = 17728092639, AccessoryType = Enum.AccessoryType.Hair} -- Cabelo
-    }
-
-    for _, accessory in ipairs(accessories) do
-        EquipItem("accessory", accessory.AssetId, nil, accessory.AccessoryType)
-    end
-
-    -- Rosto
-    EquipItem("accessory", 66330265)
-
-    -- Partes do corpo
-    local bodyParts = {
-        {AssetId = 27493604, Property = "Torso"}, -- Tronco
-        {AssetId = 27493683, Property = "LeftLeg"}, -- Perna Esquerda
-        {AssetId = 27493718, Property = "RightLeg"}, -- Perna Direita
-        {AssetId = 27402580, Property = "RightArm"}, -- BraÃ§o Direito
-        {AssetId = 27402641, Property = "LeftArm"} -- BraÃ§o Esquerdo
-    }
-
-    for _, bodyPart in ipairs(bodyParts) do
-        EquipItem("body", bodyPart.AssetId, bodyPart.Property)
-    end
-
-    -- Ajustar proporÃ§Ãµes do corpo
-    SetBodyScale()
-
-    -- NotificaÃ§Ã£o de conclusÃ£o
-    WindUI:Notify({
-        Title = "Skin Equipada",
-        Content = "A skin 'Skin de cria - 2' foi equipada com sucesso.",
-        Duration = 5,
-    })
-end
-
--- CriaÃ§Ã£o do Dropdown na SkinTab
-SkinTab:Dropdown({
-    Title = "Skins de cria corpo semi-realista",
-    Desc = "Selecione uma skin pronta para equipar.",
-    Multi = false,
-    Value = nil, -- Nenhuma skin selecionada por padrÃ£o
-    AllowNone = true, -- Permite desmarcar
-    Values = {"Skin de cria - 1", "Skin de cria - 2"}, -- Lista com o nome das skins
-    Callback = function(selectedSkin)
-        -- Remover acessÃ³rios antes de equipar a skin
-        RemoveAccessories()
-        
-        -- Equipar a skin selecionada
-        if selectedSkin == "Skin de cria - 1" then
-            EquipSkinDeCria1()
-        elseif selectedSkin == "Skin de cria - 2" then
-            EquipSkinDeCria2()
-        end
-    end
-})
-
--- FunÃ§Ã£o para equipar a skin "Skin de sapo"
-local function EquipSkinSapo()
-    local args = {
-        [1] = {
-            ["WalkAnimation"] = 0,
-            ["Accessories"] = {},
-            ["RightLegColor"] = nil,
-            ["MoodAnimation"] = 14618207727,
-            ["LeftLegColor"] = nil,
-            ["JumpAnimation"] = 0,
-            ["ProportionScale"] = 0,
-            ["BodyTypeScale"] = 1,
-            ["ClimbAnimation"] = 0,
-            ["LeftArmColor"] = nil,
-            ["Face"] = 0,
-            ["Pants"] = 0,
-            ["RightArmColor"] = nil,
-            ["DepthScale"] = 1,
-            ["WidthScale"] = 1,
-            ["SwimAnimation"] = 0,
-            ["RightArm"] = 17898082257,
-            ["GraphicTShirt"] = 0,
-            ["Head"] = 17898084158,
-            ["Shirt"] = 0,
-            ["RightLeg"] = 17898082268,
-            ["RunAnimation"] = 0,
-            ["Torso"] = 17898081687,
-            ["FallAnimation"] = 0,
-            ["TorsoColor"] = nil,
-            ["IdleAnimation"] = 0,
-            ["LeftArm"] = 17898082237,
-            ["HeadScale"] = 1,
-            ["HeightScale"] = 1,
-            ["HeadColor"] = nil,
-            ["LeftLeg"] = 17898081542
-        }
-    }
-
-    pcall(function()
-        game:GetService("ReplicatedStorage").BloxbizRemotes.CatalogOnApplyOutfit:FireServer(unpack(args))
-    end)
-
-    WindUI:Notify({
-        Title = "Skin Equipada",
-        Content = "A skin 'Skin de sapo' foi equipada com sucesso.",
-        Duration = 5,
-    })
-end
-
--- FunÃ§Ã£o para equipar a skin "Skin de capivara"
-local function EquipSkinCapivara()
-    local args = {
-        [1] = {
-            ["WalkAnimation"] = 0,
-            ["Accessories"] = {},
-            ["RightLegColor"] = nil,
-            ["MoodAnimation"] = 14618207727,
-            ["LeftLegColor"] = nil,
-            ["JumpAnimation"] = 0,
-            ["ProportionScale"] = 0,
-            ["BodyTypeScale"] = 1,
-            ["ClimbAnimation"] = 0,
-            ["LeftArmColor"] = nil,
-            ["Face"] = 0,
-            ["Pants"] = 0,
-            ["RightArmColor"] = nil,
-            ["DepthScale"] = 1,
-            ["WidthScale"] = 1,
-            ["SwimAnimation"] = 0,
-            ["RightArm"] = 131681603005543,
-            ["GraphicTShirt"] = 0,
-            ["Head"] = 109137349673343,
-            ["Shirt"] = 0,
-            ["RightLeg"] = 98454038846291,
-            ["RunAnimation"] = 0,
-            ["Torso"] = 129341990941517,
-            ["FallAnimation"] = 0,
-            ["TorsoColor"] = nil,
-            ["IdleAnimation"] = 0,
-            ["LeftArm"] = 107032747230578,
-            ["HeadScale"] = 1,
-            ["HeightScale"] = 1,
-            ["HeadColor"] = nil,
-            ["LeftLeg"] = 93110795723782
-        }
-    }
-
-    pcall(function()
-        game:GetService("ReplicatedStorage").BloxbizRemotes.CatalogOnApplyOutfit:FireServer(unpack(args))
-    end)
-
-    WindUI:Notify({
-        Title = "Skin Equipada",
-        Content = "A skin 'Skin de capivara' foi equipada com sucesso.",
-        Duration = 5,
-    })
-end
-
--- CriaÃ§Ã£o do DropDown na SkinTab
-SkinTab:Dropdown({
-    Title = "Skin de Animais",
-    Desc = "Selecione uma skin de animal para equipar.",
-    Multi = false,
-    Value = nil, -- Nenhuma skin selecionada por padrÃ£o
-    AllowNone = true, -- Permite desmarcar
-    Values = {"Skin de sapo", "Skin de capivara"}, -- Lista de skins
-    Callback = function(selectedSkin)
-        -- Equipar a skin selecionada
-        if selectedSkin == "Skin de sapo" then
-            EquipSkinSapo()
-        elseif selectedSkin == "Skin de capivara" then
-            EquipSkinCapivara()
-        end
-    end
-})
-
--- Input para salvar nome de skin
-SkinTab:Input({
-    Title = "Nome da Skin",
-    PlaceholderText = "Digite o nome...",
-    Callback = function(value)
-        SavedSkinName = value
-    end
-})
-
--- BotÃ£o para salvar a skin
-SkinTab:Button({
-    Title = "Salvar Skin",
-    Desc = "Salva a skin atual com o nome fornecido",
-    Callback = function()
-        if SavedSkinName ~= "" then
-            local args = { "create", SavedSkinName }
-            ReplicatedStorage.AvatarEditor.RemoteEvent:FireServer(unpack(args))
-            WindUI:Notify({
-                Title = "Skin Salva",
-                Content = "Skin salva: " .. SavedSkinName,
-                Duration = 5,
-            })
-        else
-            WindUI:Notify({
-                Title = "Erro",
-                Content = "Defina um nome para salvar.",
-                Duration = 5,
-            })
-        end
     end
 })
 
@@ -2411,6 +2192,611 @@ TeleportTab:Button({
         humanoidRootPart.CFrame = CFrame.new(-1007, 3, 31) -- Teleporta para a posiÃ§Ã£o 0, 25, -72
     end
 })
+
+-- Map Tab
+
+-- LocalScript FINAL DEFINITIVO (Client)
+-- Ilha no céu + construção + UI Tema A (Glass) + áudio robusto 100%
+-- Requisitos: rodar no client (LocalScript) dentro do seu Hub
+
+-- ============== CONFIG ==============
+local ilhaPos = Vector3.new(0, 10000, 0)
+local ISLAND_NAME = "IlhaNoCeu_GabScripts"
+local MODEL_ASSET = "rbxassetid://11800717151"
+
+local musicList = {
+    131891110268352,137963518593865,81700399219236,83064304128591,86685635786943,
+    73774331093132,93146696739126,84928031488498,76312991186384,95046091312570,
+    122039107528238,96215620202470,104481380959795,127013133418864,88339486019486,
+    97097857368633,139693447546059,131847084942844,72182615662988,79120642849019,
+    139745829218874,110860247960302
+}
+
+local START_VOLUME = 2
+local SOUND_MAX_DISTANCE = 80
+local SOUND_LOOP_POLL = 0.25
+local ISLAND_SIZE = Vector3.new(800, 30, 800)
+
+-- SERVICES
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+
+local localPlayer = Players.LocalPlayer
+local playerGui = localPlayer:WaitForChild("PlayerGui")
+
+-- GLOBAL STATE
+local ilhaFolder = nil
+local modelInstance = nil
+local musicPart = nil        -- Part that contains Sound (parented to modelInstance when possible)
+local currentSound = nil
+local currentIndex = 1
+local musicPlaying = false
+local soundLoopTask = nil
+local connections = {}
+local speakerParts = {}
+local guiRoot = nil
+
+-- UTILITIES
+local function safeDestroy(obj)
+    if obj and obj.Destroy then
+        pcall(obj.Destroy, obj)
+    end
+end
+
+local function disconnectAll()
+    for _,c in ipairs(connections) do
+        if c and type(c) == "RBXScriptConnection" then
+            pcall(function() c:Disconnect() end)
+        end
+    end
+    connections = {}
+end
+
+local function tween(instance, props, time, style, dir)
+    style = style or Enum.EasingStyle.Quad
+    dir = dir or Enum.EasingDirection.Out
+    local info = TweenInfo.new(time or 0.25, style, dir)
+    local tw = TweenService:Create(instance, info, props)
+    tw:Play()
+    return tw
+end
+
+-- ============== AUDIO CORE (definitivo) ==============
+local function createMusicPart(parentModel)
+    -- limpa anterior
+    if musicPart and musicPart.Parent then safeDestroy(musicPart) end
+    musicPart = Instance.new("Part")
+    musicPart.Name = "Ilha_MusicPart"
+    musicPart.Size = Vector3.new(4,1,4)
+    musicPart.Anchored = true
+    musicPart.CanCollide = false
+    musicPart.Transparency = 1
+
+    if parentModel and parentModel.PrimaryPart then
+        musicPart.CFrame = parentModel.PrimaryPart.CFrame
+        musicPart.Parent = parentModel
+    else
+        musicPart.CFrame = CFrame.new(ilhaPos)
+        musicPart.Parent = workspace
+    end
+
+    -- cria Sound e configura
+    currentSound = Instance.new("Sound")
+    currentSound.Name = "IlhaSound"
+    currentSound.Looped = false
+    currentSound.RollOffMode = Enum.RollOffMode.Inverse
+    currentSound.MaxDistance = SOUND_MAX_DISTANCE
+    currentSound.Volume = START_VOLUME
+    currentSound.Parent = musicPart
+
+    -- efeitos leves para ficar bom no interior
+    local eq = Instance.new("EqualizerSoundEffect")
+    eq.LowGain = 5
+    eq.MidGain = -1
+    eq.HighGain = -2
+    eq.Parent = currentSound
+
+    local reverb = Instance.new("ReverbSoundEffect")
+    reverb.DecayTime = 1.6
+    reverb.Diffusion = 0.6
+    reverb.Density = 0.85
+    reverb.Parent = currentSound
+
+    return musicPart, currentSound
+end
+
+local function playMusicIndex(index)
+    if not currentSound then return end
+    if #musicList == 0 then return end
+
+    currentIndex = math.clamp(index, 1, #musicList)
+    musicPlaying = true
+
+    -- stop antes de trocar
+    pcall(function() currentSound:Stop() end)
+
+    -- set SoundId WHILE o Sound já tem Parent válido (isso garante carregamento)
+    currentSound.SoundId = "rbxassetid://" .. tostring(musicList[currentIndex])
+
+    -- espera carregar com segurança
+    local ok = pcall(function() currentSound.Loaded:Wait() end)
+    if not ok then
+        task.wait(0.12)
+    end
+    task.wait(0.05)
+    pcall(function() currentSound:Play() end)
+end
+
+local function playNext()
+    if #musicList == 0 then return end
+    currentIndex = currentIndex + 1
+    if currentIndex > #musicList then currentIndex = 1 end
+    playMusicIndex(currentIndex)
+end
+
+local function playPrev()
+    if #musicList == 0 then return end
+    currentIndex = currentIndex - 1
+    if currentIndex < 1 then currentIndex = #musicList end
+    playMusicIndex(currentIndex)
+end
+
+local function setVolume(v)
+    if currentSound then currentSound.Volume = math.clamp(v, 0, 10) end
+end
+
+local function stopMusic()
+    musicPlaying = false
+    if soundLoopTask then
+        pcall(function() task.cancel(soundLoopTask) end)
+        soundLoopTask = nil
+    end
+    if currentSound then pcall(function() currentSound:Stop() end) end
+    safeDestroy(musicPart)
+    musicPart = nil
+    currentSound = nil
+end
+
+local function startMusicLoopWatcher()
+    if soundLoopTask then return end
+    soundLoopTask = task.spawn(function()
+        while musicPlaying do
+            task.wait(SOUND_LOOP_POLL)
+            if currentSound then
+                local okLen, tlen = pcall(function() return currentSound.TimeLength end)
+                local okPos, tpos = pcall(function() return currentSound.TimePosition end)
+                if okLen and okPos and (tlen and tlen > 0) and (tpos and tpos >= tlen - 0.35) then
+                    -- próxima faixa (garante carregar antes de tocar)
+                    currentIndex = currentIndex + 1
+                    if currentIndex > #musicList then currentIndex = 1 end
+                    currentSound.SoundId = "rbxassetid://" .. tostring(musicList[currentIndex])
+                    local ok = pcall(function() currentSound.Loaded:Wait() end)
+                    if not ok then task.wait(0.12) end
+                    task.wait(0.06)
+                    pcall(function() currentSound:Play() end)
+                end
+            end
+        end
+    end)
+end
+
+-- ============== VISUAL SPEAKERS ==============
+local function createSpeakerVisual(helperPart)
+    local s = Instance.new("Part")
+    s.Size = Vector3.new(1.6,1.6,0.6)
+    s.Anchored = true
+    s.CanCollide = false
+    s.Transparency = 0
+    s.Parent = helperPart.Parent
+    s.CFrame = helperPart.CFrame * CFrame.new(0, 1.6, 0)
+    table.insert(speakerParts, s)
+
+    local pl = Instance.new("PointLight")
+    pl.Range = 10
+    pl.Brightness = 1.2
+    pl.Parent = s
+
+    local con = RunService.Heartbeat:Connect(function()
+        if currentSound and currentSound.PlaybackState == Enum.PlaybackState.Playing then
+            local pos = currentSound.TimePosition or 0
+            local amp = 1 + (math.abs(math.sin(pos * 8)) * 0.28)
+            s.Size = Vector3.new(1.6 * amp, 1.6 * amp, 0.6)
+            pl.Brightness = 1.2 * amp
+        else
+            s.Size = Vector3.new(1.6,1.6,0.6)
+            pl.Brightness = 1.0
+        end
+    end)
+    table.insert(connections, con)
+    return s
+end
+
+local function setupSpeakersOnModel(model)
+    for _,sp in ipairs(speakerParts) do safeDestroy(sp) end
+    speakerParts = {}
+    if not model or not model.PrimaryPart then return end
+    local base = model.PrimaryPart.CFrame
+    local offsets = { Vector3.new(3,2,0), Vector3.new(-3,2,0), Vector3.new(0,2,3), Vector3.new(0,2,-3) }
+    for _,off in ipairs(offsets) do
+        local helper = Instance.new("Part")
+        helper.Size = Vector3.new(1,1,1)
+        helper.Anchored = true
+        helper.CanCollide = false
+        helper.Transparency = 1
+        helper.CFrame = base * CFrame.new(off)
+        helper.Parent = model
+        createSpeakerVisual(helper)
+    end
+end
+
+-- ============== FULLBRIGHT SUAVE ==============
+local function applyFullbrightSoft(model)
+    if not model then return end
+    local lightsFolder = Instance.new("Folder")
+    lightsFolder.Name = "IlhaLights"
+    lightsFolder.Parent = model
+
+    local bigParts = {}
+    for _,v in ipairs(model:GetDescendants()) do
+        if v:IsA("BasePart") and v.Size.Magnitude > 5 then
+            table.insert(bigParts, v)
+        end
+    end
+
+    for i=1, math.min(6, #bigParts) do
+        local p = bigParts[math.random(1,#bigParts)]
+        local pl = Instance.new("PointLight")
+        pl.Range = 30
+        pl.Brightness = 0.5
+        pl.Parent = p
+    end
+
+    if model.PrimaryPart then
+        local surf = Instance.new("SurfaceLight")
+        surf.Face = Enum.NormalId.Top
+        surf.Range = 40
+        surf.Brightness = 0.5
+        surf.Parent = model.PrimaryPart
+    end
+end
+
+-- ============== CREATE ISLAND & MODEL (no trees) ==============
+local function createIslandAndModel()
+    if ilhaFolder and ilhaFolder.Parent then
+        return nil, "Ilha já existe"
+    end
+
+    ilhaFolder = Instance.new("Folder")
+    ilhaFolder.Name = ISLAND_NAME .. "_" .. HttpService:GenerateGUID(false)
+    ilhaFolder.Parent = workspace
+
+    local base = Instance.new("Part")
+    base.Name = "BaseIlha"
+    base.Size = ISLAND_SIZE
+    base.Anchored = true
+    base.CanCollide = true
+    base.Material = Enum.Material.Grass
+    base.Position = ilhaPos
+    base.Parent = ilhaFolder
+
+    local edge = Instance.new("Part")
+    edge.Name = "Edge"
+    edge.Size = Vector3.new(ISLAND_SIZE.X+20, 8, ISLAND_SIZE.Z+20)
+    edge.Anchored = true
+    edge.Position = ilhaPos + Vector3.new(0, -14, 0)
+    edge.Material = Enum.Material.Rock
+    edge.Parent = ilhaFolder
+
+    -- carrega modelo
+    local ok, model = pcall(function() return game:GetObjects(MODEL_ASSET)[1] end)
+    if not ok or not model then
+        return nil, "Falha ao carregar modelo"
+    end
+
+    model.Parent = ilhaFolder
+    model:MoveTo(ilhaPos + Vector3.new(0, 30, 0))
+    if not model.PrimaryPart then
+        model.PrimaryPart = model:FindFirstChildWhichIsA("BasePart") or model:FindFirstChild("HumanoidRootPart")
+    end
+    model.Name = "IlhaBuilding"
+    modelInstance = model
+
+    -- helipad
+    local pad = Instance.new("Part")
+    pad.Name = "Helipad"
+    pad.Size = Vector3.new(60,2,60)
+    pad.Anchored = true
+    pad.Position = model.PrimaryPart.Position + Vector3.new(0,60,0)
+    pad.Material = Enum.Material.Metal
+    pad.Parent = ilhaFolder
+
+    -- aplica fullbright suave
+    applyFullbrightSoft(model)
+
+    -- speakers visuais
+    setupSpeakersOnModel(model)
+
+    -- cria music part DENTRO do modelo (garante som audível dentro do prédio)
+    createMusicPart(model)
+
+    -- inicia primeira música (apenas define e começa)
+    if currentSound then
+        playMusicIndex(1)
+        startMusicLoopWatcher()
+    end
+
+    -- teleporta jogador
+    if localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart") and model.PrimaryPart then
+        localPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(model.PrimaryPart.Position + Vector3.new(0, 6, 0))
+    end
+
+    return model, nil
+end
+
+-- ============== REMOVE ISLAND ==============
+local function removeIsland()
+    stopMusic()
+    disconnectAll()
+    for _,s in ipairs(speakerParts) do safeDestroy(s) end
+    speakerParts = {}
+    if ilhaFolder and ilhaFolder.Parent then safeDestroy(ilhaFolder) end
+    ilhaFolder = nil
+    modelInstance = nil
+    if guiRoot and guiRoot.Parent then safeDestroy(guiRoot) end
+    guiRoot = nil
+    if pcall(function() return WindUI end) then
+        pcall(function() WindUI:Notify({Title = "Removida", Content = "Ilha e UI removidas.", Duration = 4}) end)
+    end
+end
+
+-- ============== UI (Glass Theme A com hover, boot holográfico e toggle) ==============
+local function createUI()
+    if guiRoot and guiRoot.Parent then safeDestroy(guiRoot) guiRoot = nil end
+
+    guiRoot = Instance.new("ScreenGui")
+    guiRoot.Name = "IlhaMusicUI_" .. HttpService:GenerateGUID(false)
+    guiRoot.ResetOnSpawn = false
+    guiRoot.Parent = playerGui
+
+    local main = Instance.new("Frame")
+    main.Name = "Main"
+    main.Size = UDim2.new(0,420,0,120)
+    main.Position = UDim2.new(0.5,-210,0.85,-60)
+    main.AnchorPoint = Vector2.new(0.5,0.5)
+    main.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    main.BackgroundTransparency = 0.65
+    main.Parent = guiRoot
+    main.ClipsDescendants = true
+    main.Active = true
+
+    local ucorner = Instance.new("UICorner", main)
+    ucorner.CornerRadius = UDim.new(0,14)
+    local uistroke = Instance.new("UIStroke", main)
+    uistroke.Thickness = 1
+    uistroke.Transparency = 0.6
+
+    local title = Instance.new("TextLabel", main)
+    title.Size = UDim2.new(0,200,0,28)
+    title.Position = UDim2.new(0,14,0,12)
+    title.BackgroundTransparency = 1
+    title.Text = "Ilha Musical"
+    title.TextColor3 = Color3.fromRGB(245,245,245)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 18
+    title.TextXAlignment = Enum.TextXAlignment.Left
+
+    local trackLabel = Instance.new("TextLabel", main)
+    trackLabel.Name = "TrackLabel"
+    trackLabel.Size = UDim2.new(0,380,0,24)
+    trackLabel.Position = UDim2.new(0,14,0,44)
+    trackLabel.BackgroundTransparency = 1
+    trackLabel.Text = "Nenhuma música"
+    trackLabel.TextColor3 = Color3.fromRGB(230,230,230)
+    trackLabel.Font = Enum.Font.Gotham
+    trackLabel.TextSize = 14
+    trackLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local controls = Instance.new("Frame", main)
+    controls.Name = "Controls"
+    controls.Size = UDim2.new(0,380,0,48)
+    controls.Position = UDim2.new(0,20,0,72)
+    controls.BackgroundTransparency = 1
+
+    local function makeBtn(txt, x)
+        local b = Instance.new("ImageButton")
+        b.Size = UDim2.new(0,44,0,44)
+        b.Position = UDim2.new(0,x,0,0)
+        b.BackgroundTransparency = 0.72
+        b.AutoButtonColor = true
+        b.Parent = controls
+        local lab = Instance.new("TextLabel", b)
+        lab.Size = UDim2.new(1,0,1,0)
+        lab.BackgroundTransparency = 1
+        lab.Font = Enum.Font.GothamBold
+        lab.TextSize = 22
+        lab.TextColor3 = Color3.fromRGB(245,245,245)
+        lab.Text = txt
+        return b, lab
+    end
+
+    local prevBtn, _ = makeBtn("⏮", 0)
+    local playBtn, playIcon = makeBtn("▶", 56)
+    local nextBtn, _ = makeBtn("⏭", 112)
+
+    local volMinus = Instance.new("TextButton", controls)
+    volMinus.Size = UDim2.new(0,36,0,28)
+    volMinus.Position = UDim2.new(0, 180, 0, 8)
+    volMinus.Text = "-"
+    volMinus.Font = Enum.Font.GothamBold
+    volMinus.TextSize = 20
+    volMinus.BackgroundTransparency = 0.7
+    volMinus.TextColor3 = Color3.fromRGB(240,240,240)
+
+    local volPlus = Instance.new("TextButton", controls)
+    volPlus.Size = UDim2.new(0,36,0,28)
+    volPlus.Position = UDim2.new(0, 228, 0, 8)
+    volPlus.Text = "+"
+    volPlus.Font = Enum.Font.GothamBold
+    volPlus.TextSize = 20
+    volPlus.BackgroundTransparency = 0.7
+    volPlus.TextColor3 = Color3.fromRGB(240,240,240)
+
+    -- Toggle flutuante
+    local toggle = Instance.new("ImageButton")
+    toggle.Name = "Toggle"
+    toggle.Size = UDim2.new(0,66,0,66)
+    toggle.Position = UDim2.new(0.95, -80, 0.3, -32)
+    toggle.AnchorPoint = Vector2.new(0.5,0.5)
+    toggle.BackgroundTransparency = 0.45
+    toggle.Parent = guiRoot
+    local tcorner2 = Instance.new("UICorner", toggle)
+    tcorner2.CornerRadius = UDim.new(1,0)
+    toggle.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    local tlabel = Instance.new("TextLabel", toggle)
+    tlabel.Size = UDim2.new(1,0,1,0)
+    tlabel.BackgroundTransparency = 1
+    tlabel.Text = "ON"
+    tlabel.Font = Enum.Font.GothamBold
+    tlabel.TextSize = 18
+    tlabel.TextColor3 = Color3.fromRGB(30,30,30)
+    local tstroke = Instance.new("UIStroke", toggle)
+    tstroke.Thickness = 2
+    tstroke.Transparency = 0.4
+
+    -- boot overlay
+    local boot = Instance.new("Frame", toggle)
+    boot.Size = UDim2.new(1,0,1,0)
+    boot.BackgroundTransparency = 1
+    local bootText = Instance.new("TextLabel", boot)
+    bootText.Size = UDim2.new(1,0,1,0)
+    bootText.BackgroundTransparency = 1
+    bootText.Font = Enum.Font.GothamBold
+    bootText.TextSize = 12
+    bootText.TextColor3 = Color3.fromRGB(255,255,255)
+
+    -- hover main
+    table.insert(connections, main.MouseEnter:Connect(function()
+        tween(main, {BackgroundTransparency = 0.45}, 0.15)
+        tween(uistroke, {Transparency = 0.2}, 0.15)
+    end))
+    table.insert(connections, main.MouseLeave:Connect(function()
+        tween(main, {BackgroundTransparency = 0.65}, 0.25)
+        tween(uistroke, {Transparency = 0.6}, 0.25)
+    end))
+
+    -- toggle hover
+    table.insert(connections, toggle.MouseEnter:Connect(function() tween(toggle, {Rotation = 7}, 0.12) tstroke.Transparency = 0.05 end))
+    table.insert(connections, toggle.MouseLeave:Connect(function() tween(toggle, {Rotation = 0}, 0.12) tstroke.Transparency = 0.4 end))
+
+    -- boot animation
+    task.spawn(function()
+        bootText.Text = "Booting..."
+        for i=1,3 do
+            bootText.Text = "Booting" .. string.rep(".", i)
+            task.wait(0.34)
+        end
+        bootText.Text = "ON"
+        task.wait(0.18)
+        pcall(function() boot:Destroy() end)
+    end)
+
+    -- button connections
+    playBtn.MouseButton1Click:Connect(function()
+        -- se não existe Sound ainda, cria-o (prioriza modelInstance)
+        if not currentSound then
+            if modelInstance and modelInstance.PrimaryPart then
+                createMusicPart(modelInstance)
+            else
+                createMusicPart(nil)
+            end
+            if currentSound then
+                playMusicIndex(currentIndex)
+                startMusicLoopWatcher()
+            end
+            return
+        end
+
+        -- se existe, alterna pausa/play
+        if currentSound.PlaybackState == Enum.PlaybackState.Playing then
+            pcall(function() currentSound:Pause() end)
+            playIcon.Text = "⏸"
+        else
+            pcall(function() currentSound:Play() end)
+            playIcon.Text = "▶"
+            musicPlaying = true
+            startMusicLoopWatcher()
+        end
+    end)
+
+    prevBtn.MouseButton1Click:Connect(function() if currentSound then playPrev() end end)
+    nextBtn.MouseButton1Click:Connect(function() if currentSound then playNext() end end)
+
+    volMinus.MouseButton1Click:Connect(function() if currentSound then setVolume(currentSound.Volume - 0.5) end end)
+    volPlus.MouseButton1Click:Connect(function() if currentSound then setVolume(currentSound.Volume + 0.5) end end)
+
+    -- toggle show/hide main
+    local visible = true
+    toggle.MouseButton1Click:Connect(function()
+        visible = not visible
+        if visible then
+            tween(main, {Position = UDim2.new(0.5,-210,0.85,-60)}, 0.35)
+            tlabel.Text = "ON"
+        else
+            tween(main, {Position = UDim2.new(0.5,-210,1.3,-60)}, 0.35)
+            tlabel.Text = "OFF"
+        end
+    end)
+
+    -- UI update heartbeat (mostra id)
+    table.insert(connections, RunService.Heartbeat:Connect(function()
+        if currentSound and currentSound.SoundId and currentSound.SoundId ~= "" then
+            trackLabel.Text = "Tocando: " .. tostring(musicList[currentIndex])
+        else
+            trackLabel.Text = "Nenhuma música"
+        end
+    end))
+
+    return guiRoot
+end
+
+-- ============== HUB CALLBACKS ==============
+local function onCreateButtonPressed()
+    local model, err = createIslandAndModel()
+    if not model then
+        if pcall(function() return WindUI end) then
+            pcall(function() WindUI:Notify({Title = "Erro", Content = err or "Erro", Duration = 5}) end)
+        end
+        return
+    end
+    createUI()
+    if pcall(function() return WindUI end) then
+        pcall(function() WindUI:Notify({Title = "Sucesso", Content = "Ilha criada!", Duration = 4}) end)
+    end
+end
+
+local function onRemoveButtonPressed()
+    removeIsland()
+end
+
+-- auto-cria MapTab buttons se disponíveis
+if MapTab and type(MapTab.Button) == "function" then
+    pcall(function()
+        MapTab:Button({ Title = "Criar Ilha", Desc = "Gera ilha no céu", Callback = onCreateButtonPressed })
+    end)
+    pcall(function()
+        MapTab:Button({ Title = "Remover Ilha", Desc = "Remove ilha e para músicas", Callback = onRemoveButtonPressed })
+    end)
+end
+
+-- Export globals para uso manual se necessário
+_G.CreateIlha_GabScripts = onCreateButtonPressed
+_G.RemoveIlha_GabScripts = onRemoveButtonPressed
+
+-- FIM DO SCRIPT
+
+--Troll Tab
 
 -- VariÃ¡veis Globais
 local Players = game:GetService("Players")
@@ -2732,6 +3118,198 @@ TrollTab:Toggle({
     end
 })
 
+-- Declaração da variável de estado para controlar se a escala grande está ativa
+local BigScaleActive = false
+
+TrollTab:Button({
+Title = "Escala Gigante",
+Desc = "Torna seu personagem enorme ou normal.",
+Callback = function()
+if BigScaleActive then
+-- Bloco para DESATIVAR a escala gigante (voltar ao normal)
+
+-- Argumentos para ESCALA NORMAL (valores padrão)
+local args = {
+[1] = {
+["Properties"] = {
+["WalkAnimation"] = 0,
+["Face"] = 0,
+["ProportionScale"] = 0,
+["ClimbAnimation"] = 0,
+["Shirt"] = 120474751806297,
+["FaceAccessory"] = "6239323549,12931836677,14742953087,11100561687,10553396797,6660002073",
+["RightArmColor"] = {
+["b"] = 248.0000004172325,
+["IsRGBTable"] = true,
+["g"] = 248.0000004172325,
+["r"] = 248.0000004172325
+},
+["HairAccessory"] = "11710798810,11710774987",
+["RightArm"] = 0,
+["Head"] = 15093053680,
+["FallAnimation"] = 0,
+["TorsoColor"] = {
+["b"] = 248.0000004172325,
+["IsRGBTable"] = true,
+["g"] = 248.0000004172325,
+["r"] = 248.0000004172325
+},
+["DepthScale"] = 1, -- ESCALA NORMAL
+["RightLeg"] = 0,
+["HeightScale"] = 1, -- ESCALA NORMAL
+["LeftLeg"] = 0,
+["RightLegColor"] = {
+["b"] = 248.0000004172325,
+["IsRGBTable"] = true,
+["g"] = 248.0000004172325,
+["r"] = 248.0000004172325
+},
+["LeftLegColor"] = {
+["b"] = 248.0000004172325,
+["IsRGBTable"] = true,
+["g"] = 248.0000004172325,
+["r"] = 248.0000004172325
+},
+["JumpAnimation"] = 0,
+["BodyTypeScale"] = 0,
+["RunAnimation"] = 0,
+["LeftArmColor"] = {
+["b"] = 248.0000004172325,
+["IsRGBTable"] = true,
+["g"] = 248.0000004172325,
+["r"] = 248.0000004172325
+},
+["Pants"] = 124042966820832,
+["ShouldersAccessory"] = "91884665758330",
+["LayeredAccessories"] = {},
+["AccessoryRefinements"] = {},
+["NeckAccessory"] = "17492555519",
+["BackAccessory"] = "",
+["SwimAnimation"] = 0,
+["FrontAccessory"] = "",
+["HatAccessory"] = "106731512814375",
+["HeadColor"] = {
+["b"] = 248.0000004172325,
+["IsRGBTable"] = true,
+["g"] = 248.0000004172325,
+["r"] = 248.0000004172325
+},
+["WaistAccessory"] = "",
+["IdleAnimation"] = 2510235063,
+["Torso"] = 0,
+["HeadScale"] = 1, -- ESCALA NORMAL
+["WidthScale"] = 1, -- ESCALA NORMAL
+["GraphicTShirt"] = 0,
+["LeftArm"] = 0
+},
+["Action"] = "CreateAndWearHumanoidDescription",
+["RigType"] = Enum.HumanoidRigType.R15
+}
+}
+
+game:GetService("ReplicatedStorage").BloxbizRemotes.CatalogOnApplyToRealHumanoid:FireServer(unpack(args))
+BigScaleActive = false
+
+WindUI:Notify({
+Title = "Escala Gigante",
+Content = "Escala removida! Seu personagem voltou ao normal.",
+Duration = 5,
+})
+
+else
+-- Bloco para ATIVAR a escala gigante
+
+-- Argumentos para ESCALA GIGANTE (valores modificados)
+local args = {
+[1] = {
+["Properties"] = {
+["WalkAnimation"] = 0,
+["Face"] = 0,
+["ProportionScale"] = 0,
+["ClimbAnimation"] = 0,
+["Shirt"] = 120474751806297,
+["FaceAccessory"] = "6239323549,12931836677,14742953087,11100561687,10553396797,6660002073",
+["RightArmColor"] = {
+["b"] = 248.0000004172325,
+["IsRGBTable"] = true,
+["g"] = 248.0000004172325,
+["r"] = 248.0000004172325
+},
+["HairAccessory"] = "11710798810,11710774987",
+["RightArm"] = 0,
+["Head"] = 15093053680,
+["FallAnimation"] = 0,
+["TorsoColor"] = {
+["b"] = 248.0000004172325,
+["IsRGBTable"] = true,
+["g"] = 248.0000004172325,
+["r"] = 248.0000004172325
+},
+["DepthScale"] = 5, -- ESCALA GIGANTE
+["RightLeg"] = 0,
+["HeightScale"] = 5, -- ESCALA GIGANTE
+["LeftLeg"] = 0,
+["RightLegColor"] = {
+["b"] = 248.0000004172325,
+["IsRGBTable"] = true,
+["g"] = 248.0000004172325,
+["r"] = 248.0000004172325
+},
+["LeftLegColor"] = {
+["b"] = 248.0000004172325,
+["IsRGBTable"] = true,
+["g"] = 248.0000004172325,
+["r"] = 248.0000004172325
+},
+["JumpAnimation"] = 0,
+["BodyTypeScale"] = 0,
+["RunAnimation"] = 0,
+["LeftArmColor"] = {
+["b"] = 248.0000004172325,
+["IsRGBTable"] = true,
+["g"] = 248.0000004172325,
+["r"] = 248.0000004172325
+},
+["Pants"] = 124042966820832,
+["ShouldersAccessory"] = "91884665758330",
+["LayeredAccessories"] = {},
+["AccessoryRefinements"] = {},
+["NeckAccessory"] = "17492555519",
+["BackAccessory"] = "",
+["SwimAnimation"] = 0,
+["FrontAccessory"] = "",
+["HatAccessory"] = "106731512814375",
+["HeadColor"] = {
+["b"] = 248.0000004172325,
+["IsRGBTable"] = true,
+["g"] = 248.0000004172325,
+["r"] = 248.0000004172325
+},
+["WaistAccessory"] = "",
+["IdleAnimation"] = 2510235063,
+["Torso"] = 0,
+["HeadScale"] = 3, -- ESCALA GIGANTE
+["WidthScale"] = 5, -- ESCALA GIGANTE
+["GraphicTShirt"] = 0,
+["LeftArm"] = 0
+},
+["Action"] = "CreateAndWearHumanoidDescription",
+["RigType"] = Enum.HumanoidRigType.R15
+}
+}
+
+game:GetService("ReplicatedStorage").BloxbizRemotes.CatalogOnApplyToRealHumanoid:InvokeServer(unpack(args))
+BigScaleActive = true
+
+WindUI:Notify({
+Title = "Escala Gigante",
+Content = "Escala aplicada! Você agora é gigante!",
+Duration = 5,
+})
+end
+end
+})
+
 -- Adiciona o botÃ£o Ã  aba "Extras"
 ExtraTab:Button({
     Title = "Executar Infinite Yield",
@@ -2761,235 +3339,23 @@ ExtraTab:Button({
 Title = "Angel IA",
 Desc = "Uma assistente virtual para te auxiliar com scripts",
 Callback = function()
--- // Angel IA - Chat Futurista e Interativo
--- Criado por Gab Scripts (GHOST)
+local success, err = pcall(function()
+loadstring(game:HttpGet('https://raw.githubusercontent.com/GabZs77/Blessed-Hub/refs/heads/main/Angel%20IA?token=GHSAT0AAAAAADK2U75UAOPE7MYIULMJF5IS2HVKD4A'))()
+end)
 
---== CONFIG ==--
-local API_KEY = "AIzaSyDSIy5m7mTXlMMR_OOdCu2Af_EwoCd124w"
-local API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" .. API_KEY
-local systemPrompt = [[
-Você se chama Angel IA e foi criada pelo Gab Scripts, também conhecido como "GHOST".
-Você auxilia jogadores do Roblox a programar, criar scripts e tirar dúvidas gerais.
-Mantenha tom amigável, direto e útil.
-Quando enviar códigos, use ```lua ... ``` e quando quiser destacar títulos use #, negrito use * ou **.
-	]]
-	
-	--== SERVIÇOS ==--
-	local HttpService = game:GetService("HttpService")
-	local TweenService = game:GetService("TweenService")
-	local Players = game:GetService("Players")
-	local LocalPlayer = Players.LocalPlayer
-	
-	--== GUI PRINCIPAL ==--
-	local gui = Instance.new("ScreenGui", game.CoreGui)
-	gui.Name = "AngelIA"
-	gui.ResetOnSpawn = false
-	
-	--== TOGGLE LATERAL ==--
-	local Toggle = Instance.new("TextButton")
-	Toggle.Size = UDim2.new(0, 80, 0, 35)
-	Toggle.Position = UDim2.new(0, 20, 0.5, -17)
-	Toggle.Text = "💬 Angel IA"
-	Toggle.Font = Enum.Font.GothamBold
-	Toggle.TextSize = 16
-	Toggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-	Toggle.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-	Toggle.Parent = gui
-	local ToggleCorner = Instance.new("UICorner", Toggle)
-	ToggleCorner.CornerRadius = UDim.new(0, 10)
-	
-	--== JANELA PRINCIPAL ==--
-	local Main = Instance.new("Frame")
-	Main.Size = UDim2.new(0, 350, 0, 380)
-	Main.Position = UDim2.new(0.5, -175, 0.5, -190)
-	Main.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-	Main.BorderSizePixel = 0
-	Main.Active = true
-	Main.Draggable = true
-	Main.Parent = gui
-	local MainCorner = Instance.new("UICorner", Main)
-	MainCorner.CornerRadius = UDim.new(0, 12)
-	
-	--== CABEÇALHO ==--
-	local Header = Instance.new("Frame", Main)
-	Header.Size = UDim2.new(1, 0, 0, 40)
-	Header.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-	local HeaderCorner = Instance.new("UICorner", Header)
-	HeaderCorner.CornerRadius = UDim.new(0, 12)
-	local Title = Instance.new("TextLabel", Header)
-	Title.Size = UDim2.new(1, -10, 1, 0)
-	Title.Position = UDim2.new(0, 10, 0, 0)
-	Title.Text = "🤖 Angel IA"
-	Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-	Title.TextSize = 20
-	Title.Font = Enum.Font.GothamBold
-	Title.BackgroundTransparency = 1
-	Title.TextXAlignment = Enum.TextXAlignment.Left
-	
-	--== CHAT FRAME ==--
-	local ChatFrame = Instance.new("ScrollingFrame", Main)
-	ChatFrame.Size = UDim2.new(1, -10, 1, -85)
-	ChatFrame.Position = UDim2.new(0, 5, 0, 45)
-	ChatFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-	ChatFrame.BorderSizePixel = 0
-	ChatFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	ChatFrame.ScrollBarThickness = 5
-	local ChatLayout = Instance.new("UIListLayout", ChatFrame)
-	ChatLayout.Padding = UDim.new(0, 8)
-	ChatLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	
-	--== INPUT ==--
-	local Input = Instance.new("TextBox", Main)
-	Input.Size = UDim2.new(1, -10, 0, 40)
-	Input.Position = UDim2.new(0, 5, 1, -45)
-	Input.PlaceholderText = "Digite sua mensagem..."
-	Input.TextColor3 = Color3.fromRGB(255, 255, 255)
-	Input.TextSize = 16
-	Input.Font = Enum.Font.Gotham
-	Input.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-	local InputCorner = Instance.new("UICorner", Input)
-	InputCorner.CornerRadius = UDim.new(0, 10)
-	
-	--== FUNÇÕES AUXILIARES ==--
-	local function PlaySound()
-	local sound = Instance.new("Sound", Main)
-	sound.SoundId = "rbxassetid://9118823103"
-	sound.Volume = 1
-	sound.PlayOnRemove = true
-	sound:Destroy()
-	end
-	
-	local function FormatText(text)
-	text = text:gsub("%*%*(.-)%*%*", "<b>%1</b>")
-	text = text:gsub("%*(.-)%*", "<b>%1</b>")
-	text = text:gsub("<b>(.-)</b>", "<font size='22'><b>%1</b></font>")
-	return text
-	end
-	
-	local function AddMessage(sender, content)
-	local isUser = sender == "Você"
-	local Container = Instance.new("Frame", ChatFrame)
-	Container.BackgroundTransparency = 1
-	Container.Size = UDim2.new(1, 0, 0, 0)
-	Container.AutomaticSize = Enum.AutomaticSize.Y
-	
-	-- Mensagem código
-	if content:match("```lua") then
-	local codeText = content:match("```lua\n(.-)```")
-	local CodeBox = Instance.new("Frame", Container)
-	CodeBox.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-	CodeBox.Size = UDim2.new(1, isUser and -50 or -20, 0, 0)
-	CodeBox.AutomaticSize = Enum.AutomaticSize.Y
-	CodeBox.ClipsDescendants = true
-	local Corner = Instance.new("UICorner", CodeBox)
-	Corner.CornerRadius = UDim.new(0, 8)
-	
-	local CodeLabel = Instance.new("TextLabel", CodeBox)
-	CodeLabel.Text = codeText
-	CodeLabel.Font = Enum.Font.Code
-	CodeLabel.TextSize = 15
-	CodeLabel.TextColor3 = Color3.fromRGB(255,255,255)
-	CodeLabel.TextWrapped = true
-	CodeLabel.BackgroundTransparency = 1
-	CodeLabel.Size = UDim2.new(1, -10, 0, 0)
-	CodeLabel.AutomaticSize = Enum.AutomaticSize.Y
-	CodeLabel.TextXAlignment = Enum.TextXAlignment.Left
-	CodeLabel.TextYAlignment = Enum.TextYAlignment.Top
-	
-	local CopyBtn = Instance.new("TextButton", CodeBox)
-	CopyBtn.Text = "📋 Copiar"
-	CopyBtn.Size = UDim2.new(0, 80, 0, 25)
-	CopyBtn.Position = UDim2.new(1, -85, 1, -28)
-	CopyBtn.BackgroundColor3 = Color3.fromRGB(70,70,85)
-	CopyBtn.TextColor3 = Color3.fromRGB(255,255,255)
-	CopyBtn.Font = Enum.Font.GothamBold
-	CopyBtn.TextSize = 14
-	local BtnCorner = Instance.new("UICorner", CopyBtn)
-	BtnCorner.CornerRadius = UDim.new(0,6)
-	CopyBtn.MouseButton1Click:Connect(function()
-	setclipboard(CodeLabel.Text)
-	CopyBtn.Text = "✅ Copiado!"
-	task.wait(1)
-	CopyBtn.Text = "📋 Copiar"
-	end)
-	
-	-- Mensagem normal
-	else
-	local Msg = Instance.new("TextLabel", Container)
-	Msg.BackgroundTransparency = 1
-	Msg.TextWrapped = true
-	Msg.Size = UDim2.new(1, isUser and -50 or -20, 0, 0)
-	Msg.AutomaticSize = Enum.AutomaticSize.Y
-	Msg.Font = Enum.Font.Gotham
-	Msg.RichText = true
-	Msg.TextColor3 = isUser and Color3.fromRGB(0,180,255) or Color3.fromRGB(180,255,180)
-	Msg.TextXAlignment = isUser and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
-	Msg.TextYAlignment = Enum.TextYAlignment.Top
-	Msg.Text = FormatText(content)
-	end
-	end
-	
-	--== ENVIO PARA IA ==--
-	local function AskAI(msg)
-	AddMessage("Você", msg)
-	AddMessage("Angel IA", "Digitando...")
-	
-	task.spawn(function()
-	local payload = {
-	contents = {{
-				role="user",
-				parts={{text = systemPrompt.."\nPergunta: "..msg}}
-	}}
-	}
-	local responseFunc = syn and syn.request or http_request or request or (http and http.request)
-	if not responseFunc then
-	AddMessage("Angel IA", "❌ Seu executor não suporta requisições HTTP.")
-	return
-	end
-	local res = responseFunc({
-	Url = API_URL,
-	Method = "POST",
-	Headers = {["Content-Type"]="application/json"},
-	Body = HttpService:JSONEncode(payload)
-	})
-	if res and res.Body then
-	local data = HttpService:JSONDecode(res.Body)
-	local output = data.candidates and data.candidates[1].content.parts[1].text or "Erro ao processar resposta."
-	for _,v in pairs(ChatFrame:GetChildren()) do
-	if v:IsA("TextLabel") and v.Text == "Digitando..." then v:Destroy() end
-	end
-	PlaySound()
-	AddMessage("Angel IA", output)
-	else
-	AddMessage("Angel IA", "❌ Falha ao conectar à IA.")
-	end
-	end)
-	end
-	
-	--== INPUT ENVIO ==--
-	Input.FocusLost:Connect(function(enter)
-	if enter and Input.Text~="" then
-	AskAI(Input.Text)
-	Input.Text = ""
-	end
-	end)
-	
-	--== TOGGLE VISIBILIDADE ==--
-	local visible = true
-	Toggle.MouseButton1Click:Connect(function()
-	visible = not visible
-	if visible then
-	Main.Visible = true
-	TweenService:Create(Main, TweenInfo.new(0.4), {Position=UDim2.new(0.5,-175,0.5,-190)}):Play()
-	else
-	TweenService:Create(Main, TweenInfo.new(0.4), {Position=UDim2.new(0.5,-175,1.5,0)}):Play()
-	task.wait(0.4)
-	Main.Visible = false
-	end
-	end)
-	
-	--== MENSAGEM INICIAL ==--
-	AddMessage("Angel IA","👋 Olá! Sou Angel IA. Como posso te ajudar hoje?")
+if success then
+WindUI:Notify({
+Title = "Script Executado",
+Content = "Angel IA foi executado com sucesso.",
+Duration = 5,
+})
+else
+WindUI:Notify({
+Title = "Erro",
+Content = "Falha ao executar o script: " .. tostring(err),
+Duration = 5,
+})
+end
 end
 })
 
@@ -3966,7 +4332,3 @@ PremiumTab:Button({
         })
     end
 })
-
-
-
-
